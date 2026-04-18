@@ -252,3 +252,10 @@ export const WARROOM_PORT = parseInt(
   10,
 );
 
+// ── Mission Control V1 workspace defaults ───────────────────────────
+export const DAILY_BRIEF_TZ =
+  process.env.DAILY_BRIEF_TZ || envConfig.DAILY_BRIEF_TZ || 'America/Costa_Rica';
+export const MONTHLY_BUDGET_USD = parseFloat(
+  process.env.MONTHLY_BUDGET_USD || envConfig.MONTHLY_BUDGET_USD || '0',
+);
+

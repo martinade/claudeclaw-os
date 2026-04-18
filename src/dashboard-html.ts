@@ -746,6 +746,18 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div class="cal-grid" id="cal-grid"></div>
 </section>
 
+<!-- Phase 5: Daily Brief -->
+<section id="daily-brief-panel" class="glass-card ws-panel mt-5" style="min-height:120px;">
+  <div class="ws-panel-header">
+    <div>
+      <div class="ws-panel-title">Daily Brief</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Chief-of-staff summary delivered to Telegram. Default schedule: 7am CR.</div>
+    </div>
+    <button class="ws-panel-add" onclick="ccRunDailyBrief()" id="brief-run-btn">Send Now</button>
+  </div>
+  <div id="brief-preview" style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;max-height:240px;overflow-y:auto;">No brief sent yet from the dashboard. Click "Send Now" to preview + deliver for the current workspace.</div>
+</section>
+
 <!-- Phase 3: Core Memory (Tier 1 — pinned facts) -->
 <section id="core-memory-panel" class="glass-card ws-panel mt-5">
   <div class="ws-panel-header">
@@ -3649,6 +3661,31 @@ refreshWorkspacePanels = async function() {
   await _origRefreshWorkspacePanels();
   await ccLoadCalendar();
 };
+
+// ── Phase 5: Daily Brief ───────────────────────────────────────────
+async function ccRunDailyBrief() {
+  const btn = document.getElementById('brief-run-btn');
+  const preview = document.getElementById('brief-preview');
+  if (!btn || !preview) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Running…';
+  try {
+    const r = await fetch('/api/daily-brief/run', { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) {
+      preview.textContent = 'Error: ' + (data.error || r.status);
+    } else {
+      const header = (data.sent ? '✅ Delivered to Telegram' : '⚠️ Generated but not delivered') + '\n\n';
+      preview.textContent = header + (data.preview || '(empty)');
+    }
+  } catch (err) {
+    preview.textContent = 'Failed: ' + (err && err.message || err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
 
 // Initial workspace-panel load once workspaces finish loading
 document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshWorkspacePanels, 300); });

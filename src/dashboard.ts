@@ -1520,6 +1520,21 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ ok: true });
   });
 
+  // Daily Brief — manual trigger for the active workspace
+  app.post('/api/daily-brief/run', async (c) => {
+    const slug = getBizSlug(c);
+    const biz = resolveSlug(slug);
+    if (!biz) return c.json({ error: 'workspace not found' }, 404);
+    const { runDailyBrief } = await import('./jobs/daily-brief.js');
+    try {
+      const result = await runDailyBrief(biz);
+      return c.json({ ok: true, sent: result.sent, preview: result.text.slice(0, 2000), counts: result.sourceCounts });
+    } catch (err: unknown) {
+      logger.error({ err: err instanceof Error ? err.message : err }, 'daily-brief: run failed');
+      return c.json({ error: 'brief failed' }, 500);
+    }
+  });
+
   // Calendar — expands cron expressions for a given month, returns
   // { [YYYY-MM-DD]: [{id, prompt, schedule, hour, minute}] }
   app.get('/api/calendar', async (c) => {

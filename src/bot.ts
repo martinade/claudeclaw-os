@@ -902,6 +902,37 @@ export function createBot(): Bot {
     return ctx.reply(`Your chat ID: ${ctx.chat!.id}`);
   });
 
+  // Mission Control V1: /b <slug> switches the active workspace for this chat.
+  // Workspace context is only used to scope memory queries and dashboard
+  // panels; outgoing message composition is unchanged per hard constraint.
+  bot.command('b', async (ctx) => {
+    if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;
+    const { listBusinesses, getBusinessBySlug } = await import('./workspace-db.js');
+    const { setActiveWorkspace, getActiveWorkspace } = await import('./workspace-service.js');
+    const arg = (ctx.match || '').trim().toLowerCase();
+
+    if (!arg || arg === 'list' || arg === 'ls') {
+      const workspaces = listBusinesses(false);
+      const active = getActiveWorkspace(ctx.chat!.id.toString());
+      const lines = workspaces.map((w) => {
+        const marker = w.slug === active.slug ? '●' : '○';
+        return `${marker} ${w.icon_emoji} ${w.name} (${w.slug})`;
+      });
+      await ctx.reply(`Workspaces:\n${lines.join('\n')}\n\nUse /b <slug> to switch.`);
+      return;
+    }
+
+    const biz = getBusinessBySlug(arg);
+    if (!biz) {
+      const available = listBusinesses(false).map((w) => w.slug).join(', ');
+      await ctx.reply(`No workspace "${arg}". Available: ${available}`);
+      return;
+    }
+
+    setActiveWorkspace(ctx.chat!.id.toString(), biz.slug);
+    await ctx.reply(`Switched to ${biz.name} ${biz.icon_emoji}\n/b <slug> to switch. /b list to see all.`);
+  });
+
   // /start — simple greeting (auth-gated after setup)
   bot.command('start', (ctx) => {
     if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;

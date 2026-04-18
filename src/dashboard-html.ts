@@ -228,9 +228,71 @@ const WARROOM_ENABLED = warroomEnabled;
   .chat-send-btn { background: #4f46e5; color: #fff; border: none; border-radius: 12px; padding: 0 16px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.15s; flex-shrink: 0; }
   .chat-send-btn:hover { background: #4338ca; }
   .chat-send-btn:disabled { background: #2a2a2a; color: #666; cursor: not-allowed; }
+
+  /* ── Workspace sidebar (Phase 2) ─────────────────────────────── */
+  .cc-sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 220px; background: var(--bg-void); border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; overflow: hidden; z-index: 35; font-family: 'Bricolage Grotesque', sans-serif; }
+  .cc-sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 20px 16px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .cc-sidebar-logo-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--accent-gold); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; color: #000; }
+  .cc-sidebar-logo-title { font-weight: 800; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-primary); line-height: 1; }
+  .cc-sidebar-logo-subtitle { font-weight: 600; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent-gold); line-height: 1; margin-top: 3px; }
+  .cc-sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 10px; display: flex; flex-direction: column; gap: 20px; }
+  .cc-sidebar-group-label { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); padding: 0 8px; margin-bottom: 6px; }
+  .cc-sidebar-group-label.gold { color: var(--accent-gold); }
+  .cc-sidebar-rows { display: flex; flex-direction: column; gap: 2px; }
+  .cc-sidebar-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13px; font-weight: 400; color: var(--text-secondary); background: transparent; border-left: 2px solid transparent; transition: all 0.15s ease; cursor: pointer; text-decoration: none; }
+  .cc-sidebar-row:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
+  .cc-sidebar-row.active { color: var(--text-primary); background: rgba(var(--ws-accent-rgb), 0.1); border-left: 2px solid var(--ws-accent); font-weight: 600; }
+  .cc-sidebar-row.command { padding: 9px 10px; font-weight: 500; color: var(--accent-gold); background: rgba(212,175,55,0.05); border-left: 2px solid rgba(212,175,55,0.3); }
+  .cc-sidebar-row.command:hover { background: rgba(212,175,55,0.1); }
+  .cc-sidebar-icon { font-size: 15px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
+  .cc-sidebar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .cc-sidebar-kbd { margin-left: auto; font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .cc-sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+  .cc-sidebar-footer-row { display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); }
+  .cc-sidebar-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-online); animation: pulse-online 2s ease-in-out infinite; }
+  .cc-ws-create { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--text-muted); background: transparent; border: 1px dashed var(--border-subtle); cursor: pointer; margin-top: 6px; font-family: inherit; width: 100%; }
+  .cc-ws-create:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); border-style: solid; }
+  .cc-ws-form { padding: 8px 10px; background: var(--bg-secondary); border-radius: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .cc-ws-form input { width: 100%; background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 5px 8px; border-radius: 4px; font-size: 12px; font-family: inherit; }
+  .cc-ws-form input:focus { border-color: var(--ws-accent); outline: none; }
+  .cc-ws-form-btns { display: flex; gap: 4px; justify-content: flex-end; }
+  .cc-ws-form-btn { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
+  .cc-ws-form-btn.primary { background: var(--ws-accent); color: #000; }
+  .cc-ws-form-btn.secondary { background: transparent; color: var(--text-secondary); }
+  .cc-sidebar-toggle { display: none; }
+
+  @media (min-width: 900px) {
+    body.cc-has-sidebar { padding-left: 220px !important; }
+  }
+  @media (max-width: 899px) {
+    .cc-sidebar { transform: translateX(-100%); transition: transform 0.25s ease; }
+    .cc-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
+    .cc-sidebar-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 36; background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); width: 36px; height: 36px; border-radius: 8px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
+  }
 </style>
 </head>
-<body class="p-4 select-none">
+<body class="p-4 select-none cc-has-sidebar">
+
+<!-- ── Workspace sidebar (Phase 2) ───────────────────────────────── -->
+<button class="cc-sidebar-toggle" onclick="document.getElementById('cc-sidebar').classList.toggle('open')" aria-label="Toggle sidebar">☰</button>
+<aside class="cc-sidebar" id="cc-sidebar" role="navigation" aria-label="Workspace navigation">
+  <div class="cc-sidebar-logo">
+    <div class="cc-sidebar-logo-icon">⚡</div>
+    <div>
+      <div class="cc-sidebar-logo-title">Claude</div>
+      <div class="cc-sidebar-logo-subtitle">Claw</div>
+    </div>
+  </div>
+  <nav class="cc-sidebar-nav" id="cc-sidebar-nav">
+    <div style="font-size:11px;color:var(--text-muted);padding:8px;">Loading workspaces…</div>
+  </nav>
+  <div class="cc-sidebar-footer">
+    <div class="cc-sidebar-footer-row">
+      <span class="cc-sidebar-status-dot"></span>
+      <span>ClaudeClaw: <span id="cc-sidebar-status">online</span></span>
+    </div>
+  </div>
+</aside>
 
 <!-- Outer wrapper: single column on mobile, wide 2-col on desktop -->
 <div class="max-w-lg lg:max-w-6xl mx-auto">
@@ -729,6 +791,183 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 const TOKEN = ${JSON.stringify(token)};
 const CHAT_ID = ${JSON.stringify(chatId)};
 const BASE = location.origin;
+
+// ── Workspace context (Phase 2) ────────────────────────────────────
+const CC_WORKSPACES = new Map(); // slug → Business
+let CC_ACTIVE_SLUG = (new URLSearchParams(location.search).get('b'))
+  || (location.pathname.startsWith('/b/') ? location.pathname.split('/')[2] : null)
+  || localStorage.getItem('ccWorkspace')
+  || 'cross-business';
+
+const CC_NAV_GROUPS = [
+  { label: 'CLAUDECLAW', gold: true, items: [
+    { id: 'command', icon: '🤖', label: 'Command Centre', onClick: "openChat && openChat()" },
+  ]},
+  { label: 'WORKSPACE', items: [
+    { id: 'dashboard',  icon: '⚡', label: 'Dashboard',     onClick: "document.querySelector('#summary-bar, .max-w-lg')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'mission',    icon: '📋', label: 'Mission Board', onClick: "document.getElementById('mission-board')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'priorities', icon: '🎯', label: 'Priorities',    onClick: "document.getElementById('priorities-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'ideas',      icon: '💡', label: 'Ideas',         onClick: "document.getElementById('ideas-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'documents',  icon: '📄', label: 'Documents',     onClick: "document.getElementById('documents-panel')?.scrollIntoView({behavior:'smooth'})" },
+  ]},
+  { label: 'OPERATIONS', items: [
+    { id: 'calendar',    icon: '📅', label: 'Calendar',    onClick: "document.getElementById('calendar-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'daily-brief', icon: '🌅', label: 'Daily Brief', onClick: "document.getElementById('daily-brief-panel')?.scrollIntoView({behavior:'smooth'})" },
+  ]},
+  { label: 'INTELLIGENCE', items: [
+    { id: 'inbox',  icon: '📡', label: 'Intel Inbox', onClick: "document.getElementById('inbox-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'hive',   icon: '🔍', label: 'Hive Mind',   onClick: "document.getElementById('hive-section')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'memory', icon: '🧠', label: 'Memory',      onClick: "document.getElementById('memory-section')?.scrollIntoView({behavior:'smooth'})" },
+  ]},
+];
+
+function ccHexToRgb(hex) {
+  const m = (hex || '').replace('#','').match(/^(..)(..)(..)$/);
+  if (!m) return '255,215,0';
+  return parseInt(m[1],16) + ',' + parseInt(m[2],16) + ',' + parseInt(m[3],16);
+}
+
+function applyWorkspaceAccent(hex) {
+  document.documentElement.style.setProperty('--ws-accent', hex || '#FFD700');
+  document.documentElement.style.setProperty('--ws-accent-rgb', ccHexToRgb(hex));
+}
+
+function ccSetWorkspace(slug, pushHistory = true) {
+  const biz = CC_WORKSPACES.get(slug);
+  if (!biz) return;
+  CC_ACTIVE_SLUG = slug;
+  try { localStorage.setItem('ccWorkspace', slug); } catch {}
+  applyWorkspaceAccent(biz.color_hex);
+  const url = new URL(location.href);
+  url.searchParams.set('b', slug);
+  if (pushHistory) history.pushState({}, '', url.toString());
+  document.querySelectorAll('.cc-sidebar-row.ws').forEach(el => {
+    el.classList.toggle('active', el.dataset.slug === slug);
+  });
+  if (typeof refreshAll === 'function') { try { refreshAll(); } catch (e) { console.warn(e); } }
+  if (typeof refreshWorkspacePanels === 'function') { try { refreshWorkspacePanels(); } catch (e) { console.warn(e); } }
+}
+
+// Wrap fetch so every /api/* call carries the active workspace slug
+// and the dashboard token automatically. Call sites that already set
+// either param are left alone.
+const _ccOrigFetch = window.fetch.bind(window);
+window.fetch = function(input, init) {
+  let urlObj;
+  try {
+    const raw = typeof input === 'string' ? input : (input && input.url) ? input.url : String(input);
+    urlObj = new URL(raw, location.origin);
+  } catch { return _ccOrigFetch(input, init); }
+  if (urlObj.pathname.startsWith('/api/')) {
+    if (!urlObj.searchParams.has('token') && TOKEN) urlObj.searchParams.set('token', TOKEN);
+    if (!urlObj.searchParams.has('b')) urlObj.searchParams.set('b', CC_ACTIVE_SLUG);
+    return _ccOrigFetch(urlObj.toString(), init);
+  }
+  return _ccOrigFetch(input, init);
+};
+
+async function ccLoadWorkspaces() {
+  try {
+    const r = await fetch('/api/workspaces');
+    const data = await r.json();
+    CC_WORKSPACES.clear();
+    (data.workspaces || []).forEach(w => CC_WORKSPACES.set(w.slug, w));
+    ccRenderSidebar();
+    const active = CC_WORKSPACES.get(CC_ACTIVE_SLUG) || CC_WORKSPACES.get('cross-business');
+    if (active) { CC_ACTIVE_SLUG = active.slug; applyWorkspaceAccent(active.color_hex); }
+  } catch (err) { console.warn('ccLoadWorkspaces failed', err); }
+}
+
+function ccRenderSidebar() {
+  const nav = document.getElementById('cc-sidebar-nav');
+  if (!nav) return;
+  const workspaces = Array.from(CC_WORKSPACES.values());
+  const wsRows = workspaces.map((w, i) => {
+    const isActive = w.slug === CC_ACTIVE_SLUG ? ' active' : '';
+    const kbd = (i < 9) ? '<span class="cc-sidebar-kbd">⌘' + (i+1) + '</span>' : '';
+    return '<a class="cc-sidebar-row ws' + isActive + '" data-slug="' + w.slug + '" onclick="ccSetWorkspace(\\'' + w.slug + '\\')" aria-keyshortcuts="Control+' + (i+1) + ' Meta+' + (i+1) + '"><span class="cc-sidebar-icon">' + w.icon_emoji + '</span><span class="cc-sidebar-label">' + w.name + '</span>' + kbd + '</a>';
+  }).join('');
+  const navHtml = CC_NAV_GROUPS.map(g => {
+    const rows = g.items.map(it => {
+      const cls = (it.id === 'command') ? 'cc-sidebar-row command' : 'cc-sidebar-row';
+      return '<a class="' + cls + '" onclick="' + it.onClick + '"><span class="cc-sidebar-icon">' + it.icon + '</span><span class="cc-sidebar-label">' + it.label + '</span></a>';
+    }).join('');
+    return '<div><div class="cc-sidebar-group-label' + (g.gold ? ' gold' : '') + '">' + g.label + '</div><div class="cc-sidebar-rows">' + rows + '</div></div>';
+  }).join('');
+  nav.innerHTML =
+    '<div><div class="cc-sidebar-group-label">WORKSPACES</div><div class="cc-sidebar-rows">' + wsRows + '</div>' +
+    '<button class="cc-ws-create" onclick="ccToggleCreateForm()"><span class="cc-sidebar-icon">+</span><span class="cc-sidebar-label">New workspace</span></button>' +
+    '<div id="cc-ws-form-slot"></div></div>' +
+    navHtml;
+}
+
+function ccToggleCreateForm() {
+  const slot = document.getElementById('cc-ws-form-slot');
+  if (!slot) return;
+  if (slot.dataset.open === '1') { slot.innerHTML = ''; slot.dataset.open = '0'; return; }
+  slot.dataset.open = '1';
+  slot.innerHTML =
+    '<div class="cc-ws-form">' +
+    '  <input type="text" id="cc-ws-name" placeholder="Name" />' +
+    '  <input type="text" id="cc-ws-slug" placeholder="slug (auto)" />' +
+    '  <input type="text" id="cc-ws-icon" placeholder="🏢 (emoji)" maxlength="4" />' +
+    '  <input type="text" id="cc-ws-color" placeholder="#FFD700" />' +
+    '  <div class="cc-ws-form-btns">' +
+    '    <button class="cc-ws-form-btn secondary" onclick="ccToggleCreateForm()">Cancel</button>' +
+    '    <button class="cc-ws-form-btn primary" onclick="ccCreateWorkspaceSubmit()">Create</button>' +
+    '  </div>' +
+    '</div>';
+  const nameEl = document.getElementById('cc-ws-name');
+  nameEl && nameEl.focus();
+  nameEl && nameEl.addEventListener('input', e => {
+    const slugEl = document.getElementById('cc-ws-slug');
+    if (!slugEl.dataset.manual) {
+      slugEl.value = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+  });
+  const slugEl = document.getElementById('cc-ws-slug');
+  slugEl && slugEl.addEventListener('input', e => { e.target.dataset.manual = '1'; });
+}
+
+async function ccCreateWorkspaceSubmit() {
+  const name = document.getElementById('cc-ws-name').value.trim();
+  const slug = document.getElementById('cc-ws-slug').value.trim();
+  const icon = document.getElementById('cc-ws-icon').value.trim() || '🏢';
+  const color = document.getElementById('cc-ws-color').value.trim() || '#FFD700';
+  if (!name || !slug) { alert('Name and slug required'); return; }
+  const r = await fetch('/api/workspaces', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, slug, icon_emoji: icon, color_hex: color }) });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    alert('Failed: ' + (err.error || r.status));
+    return;
+  }
+  ccToggleCreateForm();
+  await ccLoadWorkspaces();
+  ccSetWorkspace(slug);
+}
+
+// Ctrl/Cmd + 1..9 to switch workspaces
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+    const target = document.activeElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    const workspaces = Array.from(CC_WORKSPACES.values());
+    const ws = workspaces[parseInt(e.key, 10) - 1];
+    if (ws) { e.preventDefault(); ccSetWorkspace(ws.slug); }
+  }
+});
+
+window.addEventListener('popstate', () => {
+  const slug = new URLSearchParams(location.search).get('b') || 'cross-business';
+  if (CC_WORKSPACES.has(slug)) ccSetWorkspace(slug, false);
+});
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', ccLoadWorkspaces);
+} else {
+  ccLoadWorkspaces();
+}
+// ── /Workspace context ─────────────────────────────────────────────
 
 // Device detection
 function detectDevice() {

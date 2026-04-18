@@ -8,8 +8,89 @@ const WARROOM_ENABLED = warroomEnabled;
 <title>ClaudeClaw Mission Control</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  body { background: #0f0f0f; color: #e0e0e0; -webkit-tap-highlight-color: transparent; }
+  /* === OpenClaw aesthetic system (Phase 0) === */
+  :root {
+    --bg-primary:    #050508;
+    --bg-void:       #030306;
+    --bg-secondary:  #0a0a0f;
+    --bg-card:       rgba(255,255,255,0.03);
+    --bg-card-hover: rgba(255,255,255,0.06);
+    --bg-glass:      rgba(10,10,15,0.75);
+    --bg-overlay:    rgba(0,0,0,0.8);
+    --text-primary:   rgba(255,255,255,0.9);
+    --text-secondary: rgba(255,255,255,0.6);
+    --text-tertiary:  rgba(255,255,255,0.4);
+    --text-muted:     rgba(255,255,255,0.35);
+    --text-disabled:  rgba(255,255,255,0.20);
+    --border-subtle: rgba(255,255,255,0.06);
+    --border-active: rgba(255,255,255,0.1);
+    --border-gold:   rgba(212,175,55,0.3);
+    --accent-gold:     #FFD700;
+    --accent-gold-rgb: 255,215,0;
+    --ws-accent:     #FFD700;
+    --ws-accent-rgb: 255,215,0;
+    --status-online-rgb:  34,197,94;
+    --status-busy-rgb:    245,158,11;
+    --status-offline-rgb: 239,68,68;
+    --status-online:  rgb(var(--status-online-rgb));
+    --status-busy:    rgb(var(--status-busy-rgb));
+    --status-offline: rgb(var(--status-offline-rgb));
+  }
+  html { background: var(--bg-primary); }
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1, h2, h3, h4, h5, h6 { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; }
+  .mono, .data-value, time, [data-mono] {
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: 'tnum' on, 'zero' on;
+  }
+  .glass-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .glass-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-active);
+    box-shadow: 0 0 40px rgba(var(--ws-accent-rgb), 0.04),
+                0 8px 32px rgba(0,0,0,0.3);
+  }
+  @keyframes pulse-online {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--status-online-rgb), 0.4); }
+    50%      { box-shadow: 0 0 0 6px rgba(var(--status-online-rgb), 0); }
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes modal-enter {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+  .animate-modal-enter { animation: modal-enter 200ms ease-out forwards; }
+  /* Workspace-tinted scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  /* === /OpenClaw aesthetic system === */
+
   .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
   .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .pill-active { background: #064e3b; color: #6ee7b7; }

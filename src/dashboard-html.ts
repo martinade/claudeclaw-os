@@ -269,6 +269,61 @@ const WARROOM_ENABLED = warroomEnabled;
     .cc-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
     .cc-sidebar-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 36; background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); width: 36px; height: 36px; border-radius: 8px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
   }
+
+  /* ── Phase 3: Workspace home (priorities, quick links, core memory) ─ */
+  .ws-home-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (min-width: 768px) { .ws-home-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } }
+  .ws-panel { padding: 16px 18px; min-height: 220px; }
+  .ws-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .ws-panel-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .ws-panel-add { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .ws-panel-add:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+  .priority-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 6px; transition: background 0.15s; }
+  .priority-row:hover { background: rgba(255,255,255,0.03); }
+  .priority-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--text-muted); background: transparent; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #000; padding: 0; }
+  .priority-check.done { background: var(--ws-accent); border-color: var(--ws-accent); }
+  .priority-text { flex: 1; font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+  .priority-text.done { color: var(--text-muted); text-decoration: line-through; }
+  .priority-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 0 4px; opacity: 0; transition: opacity 0.15s; }
+  .priority-row:hover .priority-delete { opacity: 1; }
+  .priority-delete:hover { color: var(--status-offline); }
+  .priority-input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 8px 10px; border-radius: 6px; font-size: 13px; font-family: inherit; margin-top: 8px; }
+  .priority-input:focus { border-color: var(--ws-accent); outline: none; }
+  .ql-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 520px) { .ql-grid { grid-template-columns: repeat(3, 1fr); } }
+  .ql-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: 8px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 10px; text-decoration: none; color: var(--text-primary); font-size: 11px; line-height: 1.2; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
+  .ql-tile:hover { background: rgba(var(--ws-accent-rgb), 0.06); border-color: rgba(var(--ws-accent-rgb), 0.3); }
+  .ql-tile-icon { font-size: 22px; }
+  .ql-tile-delete { position: absolute; top: 2px; right: 4px; color: var(--text-muted); font-size: 12px; opacity: 0; background: none; border: none; cursor: pointer; padding: 0; }
+  .ql-tile:hover .ql-tile-delete { opacity: 1; }
+  .ql-tile.add { border-style: dashed; color: var(--text-muted); }
+  .ql-tile.add:hover { color: var(--text-primary); border-style: solid; }
+
+  .cm-tabs { display: flex; gap: 4px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 2px; }
+  .cm-tab { padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); background: transparent; border: 1px solid var(--border-subtle); border-radius: 6px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: all 0.15s; }
+  .cm-tab.active { color: var(--ws-accent); border-color: var(--ws-accent); background: rgba(var(--ws-accent-rgb), 0.08); }
+  .cm-row { display: flex; gap: 10px; padding: 8px 6px; border-bottom: 1px solid var(--border-subtle); align-items: center; }
+  .cm-key { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ws-accent); min-width: 100px; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cm-value { flex: 1; font-size: 13px; color: var(--text-primary); line-height: 1.4; word-break: break-word; }
+  .cm-row-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; opacity: 0; transition: opacity 0.15s; padding: 0 4px; }
+  .cm-row:hover .cm-row-delete { opacity: 1; }
+  .cm-add-form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 6px; margin-top: 10px; }
+  @media (max-width: 520px) { .cm-add-form { grid-template-columns: 1fr; } }
+  .cm-add-form input { background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
+  .cm-add-form input:focus { border-color: var(--ws-accent); outline: none; }
+  .cm-add-form button { background: var(--ws-accent); color: #000; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+  .quick-add-row { display: flex; gap: 6px; padding: 8px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-subtle); overflow-x: auto; flex-shrink: 0; }
+  .quick-add-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 6px; cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.15s; }
+  .quick-add-btn:hover { background: rgba(var(--ws-accent-rgb), 0.08); color: var(--ws-accent); border-color: rgba(var(--ws-accent-rgb), 0.3); }
+  .quick-add-form { padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-subtle); display: none; flex-direction: column; gap: 6px; }
+  .quick-add-form.open { display: flex; }
+  .quick-add-form input, .quick-add-form textarea { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; resize: vertical; }
+  .quick-add-form input:focus, .quick-add-form textarea:focus { border-color: var(--ws-accent); outline: none; }
+  .quick-add-form-btns { display: flex; gap: 6px; justify-content: flex-end; }
+  .quick-add-form-btns button { padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
+  .quick-add-form-btns .cancel { background: transparent; color: var(--text-secondary); }
+  .quick-add-form-btns .submit { background: var(--ws-accent); color: #000; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -332,6 +387,26 @@ const WARROOM_ENABLED = warroomEnabled;
     <span class="summary-stat-val" id="sum-memories">-</span>
     <span class="summary-stat-label">Memories</span>
   </div>
+</div>
+
+<!-- Phase 3: Workspace home (priorities + quick links) -->
+<div id="workspace-home" class="ws-home-grid">
+  <section id="priorities-panel" class="glass-card ws-panel">
+    <div class="ws-panel-header">
+      <div class="ws-panel-title">Top Priorities</div>
+      <button class="ws-panel-add" onclick="ccShowPriorityInput()">+ Add</button>
+    </div>
+    <div id="priorities-list"></div>
+    <input type="text" id="priority-input" class="priority-input" placeholder="What's important?" style="display:none" onkeydown="if(event.key==='Enter'){ccSubmitPriority();event.preventDefault();}if(event.key==='Escape'){ccCancelPriorityInput();}">
+  </section>
+  <section id="quick-links-panel" class="glass-card ws-panel">
+    <div class="ws-panel-header">
+      <div class="ws-panel-title">Quick Links</div>
+      <button class="ws-panel-add" onclick="ccShowLinkForm()">+ Add</button>
+    </div>
+    <div id="quick-links-grid" class="ql-grid"></div>
+    <div id="quick-link-form" style="display:none;margin-top:10px;"></div>
+  </section>
 </div>
 
 <!-- Agent Status Cards -->
@@ -636,9 +711,33 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="tasks-container"><div class="card text-gray-500 text-sm">Loading...</div></div>
 </div>
 
+<!-- Phase 3: Core Memory (Tier 1 — pinned facts) -->
+<section id="core-memory-panel" class="glass-card ws-panel mt-5">
+  <div class="ws-panel-header">
+    <div>
+      <div class="ws-panel-title">Core Memory · Pinned Facts</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Tier 1 of the 3-tier memory. Injected into every system prompt.</div>
+    </div>
+  </div>
+  <div class="cm-tabs" id="cm-tabs">
+    <button class="cm-tab active" data-cat="">All</button>
+    <button class="cm-tab" data-cat="fact">Fact</button>
+    <button class="cm-tab" data-cat="preference">Preference</button>
+    <button class="cm-tab" data-cat="project">Project</button>
+    <button class="cm-tab" data-cat="person">Person</button>
+    <button class="cm-tab" data-cat="rule">Rule</button>
+  </div>
+  <div id="cm-list"></div>
+  <form class="cm-add-form" onsubmit="ccSubmitCoreMemory(event)">
+    <input type="text" id="cm-key" placeholder="key (e.g. business_name)" required>
+    <input type="text" id="cm-value" placeholder="value" required>
+    <button type="submit">Add</button>
+  </form>
+</section>
+
 <!-- Memory Landscape -->
 <div id="memory-section" class="mt-5">
-  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Memory Landscape</h2>
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Memory Landscape<span style="font-size:10px;color:var(--text-muted);margin-left:8px;font-weight:400;text-transform:none;letter-spacing:normal">Tier 2 semantic + Tier 3 consolidations</span></h2>
   <div class="grid grid-cols-3 gap-3 mb-3">
     <div class="card clickable-card text-center" onclick="openMemoryDrawer()" style="cursor:pointer">
       <div class="stat-val" id="mem-total">-</div>
@@ -3207,6 +3306,254 @@ async function abortProcessing() {
     await fetch(BASE + '/api/chat/abort?token=' + TOKEN, { method: 'POST' });
   } catch(e) { console.error('Abort error', e); }
 }
+
+// ── Phase 3: Workspace home + Core Memory + Quick-Add ─────────────
+let CC_CM_ACTIVE_CATEGORY = '';
+
+async function refreshWorkspacePanels() {
+  await Promise.all([
+    ccLoadPriorities(),
+    ccLoadQuickLinks(),
+    ccLoadCoreMemory(),
+  ]);
+}
+
+function ccEscapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+async function ccLoadPriorities() {
+  const list = document.getElementById('priorities-list');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/priorities');
+    const data = await r.json();
+    const rows = (data.priorities || []);
+    if (rows.length === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No priorities yet. Click + Add.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(p => {
+      const doneCls = p.done ? ' done' : '';
+      const check = p.done ? '✓' : '';
+      return '<div class="priority-row" data-id="' + p.id + '">' +
+        '<button class="priority-check' + doneCls + '" onclick="ccTogglePriority(' + p.id + ',' + (p.done ? 0 : 1) + ')">' + check + '</button>' +
+        '<div class="priority-text' + doneCls + '">' + ccEscapeHtml(p.text) + '</div>' +
+        '<button class="priority-delete" onclick="ccDeletePriority(' + p.id + ')" aria-label="Delete">×</button>' +
+      '</div>';
+    }).join('');
+  } catch (err) { console.warn('ccLoadPriorities failed', err); }
+}
+
+function ccShowPriorityInput() {
+  const input = document.getElementById('priority-input');
+  if (!input) return;
+  input.style.display = 'block';
+  input.value = '';
+  input.focus();
+}
+
+function ccCancelPriorityInput() {
+  const input = document.getElementById('priority-input');
+  if (input) { input.value = ''; input.style.display = 'none'; }
+}
+
+async function ccSubmitPriority() {
+  const input = document.getElementById('priority-input');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  await fetch('/api/priorities', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  ccCancelPriorityInput();
+  await ccLoadPriorities();
+}
+
+async function ccTogglePriority(id, done) {
+  await fetch('/api/priorities/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done }) });
+  await ccLoadPriorities();
+}
+
+async function ccDeletePriority(id) {
+  await fetch('/api/priorities/' + id, { method: 'DELETE' });
+  await ccLoadPriorities();
+}
+
+async function ccLoadQuickLinks() {
+  const grid = document.getElementById('quick-links-grid');
+  if (!grid) return;
+  try {
+    const r = await fetch('/api/quick-links');
+    const data = await r.json();
+    const links = (data.links || []);
+    const tiles = links.map(l =>
+      '<a class="ql-tile" href="' + ccEscapeHtml(l.url) + '" target="_blank" rel="noopener">' +
+      '<button class="ql-tile-delete" onclick="event.preventDefault();event.stopPropagation();ccDeleteQuickLink(' + l.id + ')">×</button>' +
+      '<span class="ql-tile-icon">' + ccEscapeHtml(l.icon || '🔗') + '</span>' +
+      '<span>' + ccEscapeHtml(l.label) + '</span>' +
+      '</a>'
+    ).join('');
+    grid.innerHTML = tiles + '<button class="ql-tile add" onclick="ccShowLinkForm()"><span class="ql-tile-icon">+</span><span>Add</span></button>';
+  } catch (err) { console.warn('ccLoadQuickLinks failed', err); }
+}
+
+function ccShowLinkForm() {
+  const form = document.getElementById('quick-link-form');
+  if (!form) return;
+  if (form.dataset.open === '1') { form.style.display = 'none'; form.dataset.open = '0'; return; }
+  form.dataset.open = '1';
+  form.style.display = 'block';
+  form.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:6px;">' +
+    '<input type="text" id="ql-label" placeholder="Label" style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;">' +
+    '<input type="text" id="ql-url" placeholder="https://..." style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;">' +
+    '<input type="text" id="ql-icon" placeholder="🔗" maxlength="4" style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;">' +
+    '<div style="display:flex;gap:6px;justify-content:flex-end;"><button onclick="ccShowLinkForm()" style="background:transparent;color:var(--text-secondary);border:none;padding:4px 10px;font-size:11px;cursor:pointer;">Cancel</button><button onclick="ccSubmitQuickLink()" style="background:var(--ws-accent);color:#000;border:none;padding:4px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;">Add</button></div>' +
+    '</div>';
+  document.getElementById('ql-label').focus();
+}
+
+async function ccSubmitQuickLink() {
+  const label = document.getElementById('ql-label').value.trim();
+  const url = document.getElementById('ql-url').value.trim();
+  const icon = document.getElementById('ql-icon').value.trim() || '🔗';
+  if (!label || !url) return;
+  await fetch('/api/quick-links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, url, icon }) });
+  ccShowLinkForm();
+  await ccLoadQuickLinks();
+}
+
+async function ccDeleteQuickLink(id) {
+  await fetch('/api/quick-links/' + id, { method: 'DELETE' });
+  await ccLoadQuickLinks();
+}
+
+async function ccLoadCoreMemory() {
+  const list = document.getElementById('cm-list');
+  if (!list) return;
+  try {
+    const qs = CC_CM_ACTIVE_CATEGORY ? '?category=' + encodeURIComponent(CC_CM_ACTIVE_CATEGORY) : '';
+    const r = await fetch('/api/core-memory' + qs);
+    const data = await r.json();
+    const rows = (data.memory || []);
+    if (rows.length === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No pinned facts yet.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(m =>
+      '<div class="cm-row"><span class="cm-key">' + ccEscapeHtml(m.key) + '</span><span class="cm-value">' + ccEscapeHtml(m.value) + '</span><button class="cm-row-delete" onclick="ccDeleteCoreMemory(' + m.id + ')">×</button></div>'
+    ).join('');
+  } catch (err) { console.warn('ccLoadCoreMemory failed', err); }
+}
+
+function ccSetCoreMemoryCategory(cat) {
+  CC_CM_ACTIVE_CATEGORY = cat || '';
+  document.querySelectorAll('.cm-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === CC_CM_ACTIVE_CATEGORY));
+  ccLoadCoreMemory();
+}
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('cm-tab')) {
+    ccSetCoreMemoryCategory(t.dataset.cat);
+  }
+});
+
+async function ccSubmitCoreMemory(event) {
+  event.preventDefault();
+  const key = document.getElementById('cm-key').value.trim();
+  const value = document.getElementById('cm-value').value.trim();
+  if (!key || !value) return;
+  const category = CC_CM_ACTIVE_CATEGORY || 'fact';
+  await fetch('/api/core-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value, category }) });
+  document.getElementById('cm-key').value = '';
+  document.getElementById('cm-value').value = '';
+  await ccLoadCoreMemory();
+}
+
+async function ccDeleteCoreMemory(id) {
+  await fetch('/api/core-memory/' + id, { method: 'DELETE' });
+  await ccLoadCoreMemory();
+}
+
+// Quick-add modal
+const CC_QUICK_ADD_CONFIGS = {
+  task:     { label: 'New Task',     placeholder: 'Task description (a short title derives from the first line)', endpoint: '/api/mission/tasks', payloadKey: 'prompt', multiline: true, autoTitle: true },
+  decision: { label: 'New Decision', placeholder: 'Decision text', endpoint: '/api/decisions', payloadKey: 'text', multiline: false, extra: { name: 'rationale', placeholder: 'Rationale (optional)', multiline: true } },
+  note:     { label: 'New Note',     placeholder: 'Note content',  endpoint: '/api/core-memory', payloadKey: 'value', multiline: true,  extra: { name: 'key', placeholder: 'Key (e.g. topic)', multiline: false, first: true, required: true }, forceCategory: 'fact' },
+  intel:    { label: 'New Intel',    placeholder: 'URL or text',   endpoint: '/api/inbox/ingest', payloadKey: 'raw_text', multiline: true, extra: { name: 'source_url', placeholder: 'Source URL (optional)', multiline: false, first: true } },
+  idea:     { label: 'New Idea',     placeholder: 'Idea description', endpoint: '/api/ideas', payloadKey: 'raw_text', multiline: true, extra: { name: 'title', placeholder: 'Short title', multiline: false, first: true, required: true } },
+};
+
+function ccQuickAddOpen(kind) {
+  const form = document.getElementById('quick-add-form');
+  if (!form) return;
+  const cfg = CC_QUICK_ADD_CONFIGS[kind];
+  if (!cfg) return;
+  if (form.dataset.kind === kind && form.classList.contains('open')) {
+    ccQuickAddClose();
+    return;
+  }
+  form.dataset.kind = kind;
+  const extraFirst = cfg.extra && cfg.extra.first
+    ? (cfg.extra.multiline
+        ? '<textarea id="qa-extra" placeholder="' + ccEscapeHtml(cfg.extra.placeholder) + '" rows="2"' + (cfg.extra.required ? ' required' : '') + '></textarea>'
+        : '<input type="text" id="qa-extra" placeholder="' + ccEscapeHtml(cfg.extra.placeholder) + '"' + (cfg.extra.required ? ' required' : '') + '>')
+    : '';
+  const main = cfg.multiline
+    ? '<textarea id="qa-main" placeholder="' + ccEscapeHtml(cfg.placeholder) + '" rows="3"></textarea>'
+    : '<input type="text" id="qa-main" placeholder="' + ccEscapeHtml(cfg.placeholder) + '">';
+  const extraLast = cfg.extra && !cfg.extra.first
+    ? (cfg.extra.multiline
+        ? '<textarea id="qa-extra" placeholder="' + ccEscapeHtml(cfg.extra.placeholder) + '" rows="2"' + (cfg.extra.required ? ' required' : '') + '></textarea>'
+        : '<input type="text" id="qa-extra" placeholder="' + ccEscapeHtml(cfg.extra.placeholder) + '"' + (cfg.extra.required ? ' required' : '') + '>')
+    : '';
+  form.innerHTML =
+    '<div style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">' + cfg.label + '</div>' +
+    extraFirst + main + extraLast +
+    '<div class="quick-add-form-btns"><button class="cancel" onclick="ccQuickAddClose()">Cancel</button><button class="submit" onclick="ccQuickAddSubmit()">Add</button></div>';
+  form.classList.add('open');
+  const first = form.querySelector('input, textarea');
+  first && first.focus();
+}
+
+function ccQuickAddClose() {
+  const form = document.getElementById('quick-add-form');
+  if (!form) return;
+  form.classList.remove('open');
+  form.innerHTML = '';
+  delete form.dataset.kind;
+}
+
+async function ccQuickAddSubmit() {
+  const form = document.getElementById('quick-add-form');
+  if (!form) return;
+  const kind = form.dataset.kind;
+  const cfg = CC_QUICK_ADD_CONFIGS[kind];
+  if (!cfg) return;
+  const main = (document.getElementById('qa-main') || {}).value?.trim();
+  const extra = (document.getElementById('qa-extra') || {}).value?.trim();
+  if (!main) return;
+  const payload = {};
+  payload[cfg.payloadKey] = main;
+  if (cfg.extra) payload[cfg.extra.name] = extra || '';
+  if (cfg.forceCategory) payload.category = cfg.forceCategory;
+  if (cfg.autoTitle) payload.title = main.split(/\\r?\\n/)[0].slice(0, 80) || 'Quick task';
+  try {
+    const r = await fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert('Failed: ' + (err.error || r.status));
+      return;
+    }
+    ccQuickAddClose();
+    if (kind === 'task' && typeof loadMissionBoard === 'function') loadMissionBoard();
+    if (kind === 'note') ccLoadCoreMemory();
+    if (typeof refreshWorkspacePanels === 'function') refreshWorkspacePanels();
+  } catch (err) { console.error(err); }
+}
+
+// Initial workspace-panel load once workspaces finish loading
+document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshWorkspacePanels, 300); });
+setTimeout(refreshWorkspacePanels, 800);
 </script>
 
 <!-- Chat FAB -->
@@ -3239,6 +3586,15 @@ async function abortProcessing() {
     <button class="chat-quick-btn" onclick="sendQuickAction('/respin')">Respin</button>
     <button class="chat-quick-btn destructive" onclick="sendQuickAction('/newchat')">New Chat</button>
   </div>
+  <!-- Phase 3: Workspace-scoped quick-add buttons -->
+  <div class="quick-add-row">
+    <button class="quick-add-btn" onclick="ccQuickAddOpen('task')">+ Task</button>
+    <button class="quick-add-btn" onclick="ccQuickAddOpen('decision')">+ Decision</button>
+    <button class="quick-add-btn" onclick="ccQuickAddOpen('note')">+ Note</button>
+    <button class="quick-add-btn" onclick="ccQuickAddOpen('intel')">+ Intel</button>
+    <button class="quick-add-btn" onclick="ccQuickAddOpen('idea')">+ Idea</button>
+  </div>
+  <div class="quick-add-form" id="quick-add-form"></div>
   <div class="chat-messages" id="chat-messages"></div>
   <div class="chat-progress-bar" id="chat-progress-bar">
     <div class="chat-progress-pulse"></div>

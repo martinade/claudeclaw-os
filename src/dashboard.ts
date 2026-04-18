@@ -1491,11 +1491,26 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ decision: createDecision(bizId, body) });
   });
 
-  // Inbox (list + status update; ingest route added in Phase 7)
+  // Inbox (list + status update + minimal ingest stub; full pipeline in Phase 7)
   app.get('/api/inbox', (c) => {
     const bizId = businessIdForSlug(getBizSlug(c));
     const status = c.req.query('status') || undefined;
     return c.json({ items: listInboxItems(bizId, { status }) });
+  });
+  app.post('/api/inbox/ingest', async (c) => {
+    const body = await c.req.json<{ raw_text?: string; source_url?: string }>();
+    const raw = (body?.raw_text || '').trim();
+    const src = (body?.source_url || '').trim();
+    if (!raw && !src) return c.json({ error: 'raw_text or source_url required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const { createInboxItem } = await import('./workspace-db.js');
+    const item = createInboxItem({
+      business_id: bizId,
+      source_type: src ? 'url' : 'text',
+      source_url: src,
+      raw_text: raw || src,
+    });
+    return c.json({ item });
   });
   app.patch('/api/inbox/:id', async (c) => {
     const id = parseInt(c.req.param('id'), 10);

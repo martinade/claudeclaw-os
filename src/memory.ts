@@ -21,6 +21,8 @@ import { generateContent, parseJsonResponse } from './gemini.js';
 import { logger } from './logger.js';
 import { ingestConversationTurn } from './memory-ingest.js';
 import { buildObsidianContext } from './obsidian.js';
+import { listCoreMemory } from './workspace-db.js';
+import { getActiveWorkspace } from './workspace-service.js';
 
 /**
  * Build a structured memory context string to prepend to the user's message.
@@ -112,15 +114,35 @@ export async function buildMemoryContext(
     }
   }
 
-  if (memLines.length === 0 && insightLines.length === 0 && !agentObsidianConfig) {
+  // Tier 1: pinned core memory (key-value facts scoped to the active workspace
+  // plus any NULL-tagged global facts). Queried from workspace-db so the
+  // buildMemoryContext signature stays unchanged.
+  const coreLines: string[] = [];
+  try {
+    const active = getActiveWorkspace(chatId);
+    const scopedId = active.is_global ? null : active.id;
+    const coreRows = listCoreMemory(scopedId, { includeGlobal: !active.is_global });
+    for (const row of coreRows.slice(0, 30)) {
+      coreLines.push(`- ${row.category}: ${row.key} = ${row.value}`);
+    }
+  } catch (err) {
+    logger.warn({ err }, 'buildMemoryContext: core_memory lookup failed');
+  }
+
+  if (memLines.length === 0 && insightLines.length === 0 && coreLines.length === 0 && !agentObsidianConfig) {
     return { contextText: '', surfacedMemoryIds: [], surfacedMemorySummaries: new Map() };
   }
 
   const parts: string[] = [];
 
-  if (memLines.length > 0 || insightLines.length > 0) {
+  if (memLines.length > 0 || insightLines.length > 0 || coreLines.length > 0) {
     const blocks: string[] = ['[Memory context]'];
+    if (coreLines.length > 0) {
+      blocks.push('Pinned facts (core memory):');
+      blocks.push(...coreLines);
+    }
     if (memLines.length > 0) {
+      if (coreLines.length > 0) blocks.push('');
       blocks.push('Relevant memories:');
       blocks.push(...memLines);
     }

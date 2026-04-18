@@ -91,6 +91,9 @@ import {
   createDecision,
   listInboxItems,
   updateInboxStatus,
+  listDocumentTemplates,
+  createDocumentTemplate,
+  saveRenderedDocument,
 } from './workspace-db.js';
 import { businessIdForSlug, invalidateWorkspaceCache, resolveSlug } from './workspace-service.js';
 import { WARROOM_ENABLED, WARROOM_PORT } from './config.js';
@@ -1528,6 +1531,78 @@ export function startDashboard(botApi?: Api<RawApi>): void {
       logger.error({ err: err instanceof Error ? err.message : err }, 'daily-brief: run failed');
       return c.json({ error: 'brief failed' }, 500);
     }
+  });
+
+  // Documents — template CRUD + render
+  app.get('/api/templates', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ templates: listDocumentTemplates(bizId) });
+  });
+  app.post('/api/templates', async (c) => {
+    const body = await c.req.json<{
+      name: string;
+      doc_type?: string;
+      body_md: string;
+      variables?: Array<{ key: string; label: string }>;
+    }>();
+    if (!body?.name || !body?.body_md) return c.json({ error: 'name and body_md required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const tpl = createDocumentTemplate({ business_id: bizId, ...body });
+    return c.json({ template: tpl });
+  });
+  app.post('/api/documents/render', async (c) => {
+    const body = await c.req.json<{
+      template_id?: number;
+      body_md?: string;
+      title?: string;
+      variables?: Record<string, string>;
+    }>();
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const active = resolveSlug(getBizSlug(c));
+    let sourceBody = body?.body_md || '';
+    let sourceTemplateId: number | null = null;
+    if (body?.template_id) {
+      const { getDb } = await import('./db.js');
+      const tpl = getDb().prepare('SELECT body_md FROM document_templates WHERE id = ?').get(body.template_id) as { body_md: string } | undefined;
+      if (!tpl) return c.json({ error: 'template not found' }, 404);
+      sourceBody = tpl.body_md;
+      sourceTemplateId = body.template_id;
+    }
+    if (!sourceBody) return c.json({ error: 'template_id or body_md required' }, 400);
+
+    const now = new Date();
+    const autoVars: Record<string, string> = {
+      workspace_name: active?.name ?? 'Cross-Business',
+      workspace_icon: active?.icon_emoji ?? '🌐',
+      today: now.toISOString().slice(0, 10),
+      date_long: now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+    const merged: Record<string, string> = { ...autoVars, ...(body?.variables ?? {}) };
+    const rendered = sourceBody.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
+      return Object.prototype.hasOwnProperty.call(merged, key) ? merged[key] : `{{${key}}}`;
+    });
+    const title = (body?.title || 'Document').slice(0, 200);
+    const doc = saveRenderedDocument({
+      business_id: bizId,
+      template_id: sourceTemplateId,
+      title,
+      content_md: rendered,
+    });
+    return c.json({ document: doc });
+  });
+  app.get('/api/documents/:id/file', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    const { getDb } = await import('./db.js');
+    const doc = getDb().prepare('SELECT title, content_md FROM documents WHERE id = ?').get(id) as { title: string; content_md: string } | undefined;
+    if (!doc) return c.text('not found', 404);
+    const filename = doc.title.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100) + '.md';
+    return new Response(doc.content_md, {
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
   });
 
   // Calendar — expands cron expressions for a given month, returns

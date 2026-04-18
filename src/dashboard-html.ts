@@ -363,6 +363,31 @@ const WARROOM_ENABLED = warroomEnabled;
   .inbox-add-form input { flex: 1; min-width: 200px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
   .inbox-add-form input:focus { border-color: var(--ws-accent); outline: none; }
   .inbox-add-form button { background: var(--ws-accent); color: #000; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+  /* ── Phase 8: Documents ────────────────────────────────────────── */
+  .doc-list { display: flex; flex-direction: column; gap: 8px; }
+  .doc-row { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 8px; }
+  .doc-row-name { flex: 1; font-weight: 600; font-size: 13px; color: var(--text-primary); }
+  .doc-row-type { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); padding: 2px 6px; border: 1px solid var(--border-subtle); border-radius: 4px; }
+  .doc-row-btn { padding: 4px 10px; background: var(--ws-accent); color: #000; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .doc-create { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .doc-create input { flex: 1; min-width: 200px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
+  .doc-create button { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .doc-create button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+  .doc-editor-overlay { position: fixed; inset: 0; background: var(--bg-overlay); z-index: 80; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .doc-editor-overlay.open { display: flex; }
+  .doc-editor { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 16px; max-width: 720px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; animation: modal-enter 200ms ease-out; }
+  .doc-editor-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); }
+  .doc-editor-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .doc-editor-body { padding: 16px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .doc-editor-body input, .doc-editor-body textarea { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+  .doc-editor-body input:focus, .doc-editor-body textarea:focus { border-color: var(--ws-accent); outline: none; }
+  .doc-editor-body textarea { min-height: 240px; resize: vertical; }
+  .doc-editor-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border-subtle); }
+  .doc-editor-footer button { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
+  .doc-editor-footer .cancel { background: transparent; color: var(--text-secondary); }
+  .doc-editor-footer .primary { background: var(--ws-accent); color: #000; }
+  .doc-hint { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -766,6 +791,38 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   </div>
   <div class="cal-grid" id="cal-grid"></div>
 </section>
+
+<!-- Phase 8: Documents -->
+<section id="documents-panel" class="glass-card ws-panel mt-5">
+  <div class="ws-panel-header">
+    <div>
+      <div class="ws-panel-title">Documents</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Markdown templates with {{variable}} placeholders. Auto-fills workspace + date context on render.</div>
+    </div>
+    <button class="ws-panel-add" onclick="ccDocNew()">+ New Template</button>
+  </div>
+  <div class="doc-list" id="doc-list"></div>
+</section>
+
+<!-- Doc editor modal -->
+<div class="doc-editor-overlay" id="doc-editor-overlay">
+  <div class="doc-editor">
+    <div class="doc-editor-header">
+      <div class="doc-editor-title" id="doc-editor-title">New Template</div>
+      <button onclick="ccDocCloseEditor()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&times;</button>
+    </div>
+    <div class="doc-editor-body">
+      <div class="doc-hint">Available variables: <code>{{workspace_name}}</code> <code>{{workspace_icon}}</code> <code>{{today}}</code> <code>{{date_long}}</code> <code>{{time}}</code></div>
+      <input type="text" id="doc-editor-name" placeholder="Template name (e.g. 'SOW Template')">
+      <textarea id="doc-editor-body" placeholder="# {{workspace_name}} — Statement of Work&#10;&#10;Date: {{date_long}}&#10;&#10;## Scope&#10;{{scope}}"></textarea>
+      <input type="text" id="doc-editor-title-input" placeholder="(render only) Title for this rendered document" style="display:none">
+    </div>
+    <div class="doc-editor-footer">
+      <button class="cancel" onclick="ccDocCloseEditor()">Cancel</button>
+      <button class="primary" id="doc-editor-submit" onclick="ccDocSubmit()">Save Template</button>
+    </div>
+  </div>
+</div>
 
 <!-- Phase 7: Intel Inbox -->
 <section id="inbox-panel" class="glass-card ws-panel mt-5">
@@ -3701,6 +3758,92 @@ const _origRefreshWorkspacePanels = refreshWorkspacePanels;
 refreshWorkspacePanels = async function() {
   await _origRefreshWorkspacePanels();
   await ccLoadCalendar();
+};
+
+// ── Phase 8: Documents ─────────────────────────────────────────────
+let CC_DOC_MODE = 'create'; // 'create' | 'render'
+let CC_DOC_CURRENT_TEMPLATE = null;
+
+async function ccLoadDocuments() {
+  const list = document.getElementById('doc-list');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/templates');
+    const data = await r.json();
+    const tpls = (data.templates || []);
+    if (tpls.length === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No templates yet. Click "New Template".</div>';
+      return;
+    }
+    list.innerHTML = tpls.map(t =>
+      '<div class="doc-row">' +
+      '<span class="doc-row-name">' + ccEscapeHtml(t.name) + '</span>' +
+      '<span class="doc-row-type">' + ccEscapeHtml(t.doc_type || 'md') + '</span>' +
+      '<button class="doc-row-btn" onclick="ccDocRender(' + t.id + ')">Render</button>' +
+      '</div>'
+    ).join('');
+  } catch (err) { console.warn('ccLoadDocuments failed', err); }
+}
+
+function ccDocNew() {
+  CC_DOC_MODE = 'create';
+  CC_DOC_CURRENT_TEMPLATE = null;
+  document.getElementById('doc-editor-title').textContent = 'New Template';
+  document.getElementById('doc-editor-name').value = '';
+  document.getElementById('doc-editor-name').style.display = '';
+  document.getElementById('doc-editor-body').value = '';
+  document.getElementById('doc-editor-title-input').style.display = 'none';
+  document.getElementById('doc-editor-submit').textContent = 'Save Template';
+  document.getElementById('doc-editor-overlay').classList.add('open');
+}
+
+async function ccDocRender(id) {
+  const r = await fetch('/api/templates');
+  const data = await r.json();
+  const tpl = (data.templates || []).find(t => t.id === id);
+  if (!tpl) return;
+  CC_DOC_MODE = 'render';
+  CC_DOC_CURRENT_TEMPLATE = tpl;
+  document.getElementById('doc-editor-title').textContent = 'Render: ' + tpl.name;
+  document.getElementById('doc-editor-name').style.display = 'none';
+  document.getElementById('doc-editor-body').value = tpl.body_md;
+  document.getElementById('doc-editor-title-input').style.display = '';
+  document.getElementById('doc-editor-title-input').value = tpl.name + ' — ' + new Date().toISOString().slice(0, 10);
+  document.getElementById('doc-editor-submit').textContent = 'Render + Download';
+  document.getElementById('doc-editor-overlay').classList.add('open');
+}
+
+function ccDocCloseEditor() {
+  document.getElementById('doc-editor-overlay').classList.remove('open');
+}
+
+async function ccDocSubmit() {
+  if (CC_DOC_MODE === 'create') {
+    const name = document.getElementById('doc-editor-name').value.trim();
+    const body = document.getElementById('doc-editor-body').value;
+    if (!name || !body) { alert('Name and body required'); return; }
+    const r = await fetch('/api/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, body_md: body }) });
+    if (!r.ok) { alert('Save failed'); return; }
+    ccDocCloseEditor();
+    await ccLoadDocuments();
+  } else {
+    const title = document.getElementById('doc-editor-title-input').value.trim() || (CC_DOC_CURRENT_TEMPLATE.name + ' — ' + new Date().toISOString().slice(0, 10));
+    const body = document.getElementById('doc-editor-body').value;
+    const r = await fetch('/api/documents/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body_md: body, title }) });
+    if (!r.ok) { alert('Render failed'); return; }
+    const data = await r.json();
+    const docId = data.document.id;
+    ccDocCloseEditor();
+    // Trigger download
+    window.open('/api/documents/' + docId + '/file?token=' + encodeURIComponent(TOKEN) + '&b=' + encodeURIComponent(CC_ACTIVE_SLUG), '_blank');
+  }
+}
+
+// Chain documents into refresh cycle
+const _origRefreshPanels_docs = refreshWorkspacePanels;
+refreshWorkspacePanels = async function() {
+  await _origRefreshPanels_docs();
+  await ccLoadDocuments();
 };
 
 // ── Phase 7: Intel Inbox ───────────────────────────────────────────

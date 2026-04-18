@@ -933,6 +933,36 @@ export function createBot(): Bot {
     await ctx.reply(`Switched to ${biz.name} ${biz.icon_emoji}\n/b <slug> to switch. /b list to see all.`);
   });
 
+  // Mission Control V1: /intel <url|text> ingests into the active workspace's
+  // inbox. Additive command — existing text-message flow is untouched so the
+  // user can keep pasting URLs normally if they prefer a chat response.
+  bot.command('intel', async (ctx) => {
+    if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;
+    const arg = (ctx.match || '').trim();
+    if (!arg) {
+      await ctx.reply('Usage: /intel <url or text>\n\nSaves to the active workspace inbox. /b to switch workspace.');
+      return;
+    }
+    const { getActiveWorkspace } = await import('./workspace-service.js');
+    const active = getActiveWorkspace(ctx.chat!.id.toString());
+    const bizId = active.is_global ? null : active.id;
+    const isUrl = /^https?:\/\/\S+$/i.test(arg);
+    await ctx.reply(`Ingesting${isUrl ? ' (extracting URL)' : ''}…`);
+    try {
+      const { ingestItem } = await import('./jobs/inbox-ingest.js');
+      const item = await ingestItem({
+        business_id: bizId,
+        source_url: isUrl ? arg : '',
+        raw_text: isUrl ? '' : arg,
+      });
+      const previewLine = (item.summary || item.raw_text || '').split('\n')[0].slice(0, 140);
+      await ctx.reply(`Saved to ${active.name} inbox #${item.id}\n${previewLine}`);
+    } catch (err) {
+      logger.warn({ err }, '/intel: ingest failed');
+      await ctx.reply('Ingest failed. Try again or paste the text directly.');
+    }
+  });
+
   // /start — simple greeting (auth-gated after setup)
   bot.command('start', (ctx) => {
     if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;

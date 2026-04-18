@@ -342,6 +342,27 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-pill { background: rgba(var(--ws-accent-rgb), 0.12); border-left: 2px solid var(--ws-accent); color: var(--text-primary); font-size: 10px; padding: 2px 4px; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; cursor: help; }
   .cal-pill-time { font-family: 'JetBrains Mono', monospace; color: var(--ws-accent); font-weight: 600; margin-right: 3px; }
   .cal-more { font-size: 10px; color: var(--text-muted); padding: 0 4px; }
+
+  /* ── Phase 7: Intel Inbox ──────────────────────────────────────── */
+  .inbox-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 768px) { .inbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .inbox-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.15s; }
+  .inbox-card:hover { border-color: rgba(var(--ws-accent-rgb), 0.3); }
+  .inbox-card.read { opacity: 0.55; }
+  .inbox-card-title { font-weight: 600; font-size: 13px; color: var(--text-primary); line-height: 1.3; word-break: break-word; }
+  .inbox-card-summary { font-size: 12px; color: var(--text-secondary); line-height: 1.45; word-break: break-word; }
+  .inbox-card-meta { display: flex; gap: 10px; align-items: center; font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .inbox-card-link { color: var(--ws-accent); text-decoration: none; word-break: break-all; }
+  .inbox-card-link:hover { text-decoration: underline; }
+  .inbox-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .inbox-tag { padding: 1px 6px; border-radius: 3px; font-size: 10px; background: rgba(var(--ws-accent-rgb), 0.1); color: var(--ws-accent); }
+  .inbox-card-actions { display: flex; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+  .inbox-action { flex: 1; padding: 4px 8px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .inbox-action:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+  .inbox-add-form { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .inbox-add-form input { flex: 1; min-width: 200px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
+  .inbox-add-form input:focus { border-color: var(--ws-accent); outline: none; }
+  .inbox-add-form button { background: var(--ws-accent); color: #000; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -744,6 +765,26 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
     <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
   </div>
   <div class="cal-grid" id="cal-grid"></div>
+</section>
+
+<!-- Phase 7: Intel Inbox -->
+<section id="inbox-panel" class="glass-card ws-panel mt-5">
+  <div class="ws-panel-header">
+    <div>
+      <div class="ws-panel-title">Intel Inbox</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Paste a URL or forward one to Telegram. Auto-extracts + summarises + tags.</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="ws-panel-add" onclick="ccInboxSetFilter('unread')" id="inbox-filter-unread">Unread</button>
+      <button class="ws-panel-add" onclick="ccInboxSetFilter('all')" id="inbox-filter-all">All</button>
+    </div>
+  </div>
+  <form class="inbox-add-form" onsubmit="ccInboxSubmit(event)">
+    <input type="text" id="inbox-url-input" placeholder="https://..." />
+    <input type="text" id="inbox-text-input" placeholder="or paste text" />
+    <button type="submit">Ingest</button>
+  </form>
+  <div id="inbox-list" class="inbox-grid"></div>
 </section>
 
 <!-- Phase 5: Daily Brief -->
@@ -3660,6 +3701,102 @@ const _origRefreshWorkspacePanels = refreshWorkspacePanels;
 refreshWorkspacePanels = async function() {
   await _origRefreshWorkspacePanels();
   await ccLoadCalendar();
+};
+
+// ── Phase 7: Intel Inbox ───────────────────────────────────────────
+let CC_INBOX_FILTER = 'unread';
+
+function ccInboxSetFilter(filter) {
+  CC_INBOX_FILTER = filter;
+  document.getElementById('inbox-filter-unread').style.borderColor = filter === 'unread' ? 'var(--ws-accent)' : '';
+  document.getElementById('inbox-filter-unread').style.color = filter === 'unread' ? 'var(--ws-accent)' : '';
+  document.getElementById('inbox-filter-all').style.borderColor = filter === 'all' ? 'var(--ws-accent)' : '';
+  document.getElementById('inbox-filter-all').style.color = filter === 'all' ? 'var(--ws-accent)' : '';
+  ccLoadInbox();
+}
+
+async function ccLoadInbox() {
+  const list = document.getElementById('inbox-list');
+  if (!list) return;
+  try {
+    const qs = CC_INBOX_FILTER === 'unread' ? '?status=unread' : '';
+    const r = await fetch('/api/inbox' + qs);
+    const data = await r.json();
+    const items = (data.items || []);
+    if (items.length === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:16px 0;grid-column:1/-1;text-align:center;">No items. Forward a URL to Telegram or paste one above.</div>';
+      return;
+    }
+    list.innerHTML = items.map(it => {
+      let tags = [];
+      try { tags = JSON.parse(it.tags_json || '[]'); } catch {}
+      const [firstLine, ...restLines] = (it.summary || it.raw_text || '').split('\n');
+      const title = firstLine.slice(0, 120) || '(no title)';
+      const body = restLines.join('\n').trim().slice(0, 400);
+      const urlLink = it.source_url ? '<a class="inbox-card-link" href="' + ccEscapeHtml(it.source_url) + '" target="_blank" rel="noopener">' + ccEscapeHtml(new URL(it.source_url).hostname) + '</a>' : '';
+      const date = new Date(it.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const readCls = it.status !== 'unread' ? ' read' : '';
+      return '<div class="inbox-card' + readCls + '" data-id="' + it.id + '">' +
+        '<div class="inbox-card-title">' + ccEscapeHtml(title) + '</div>' +
+        (body ? '<div class="inbox-card-summary">' + ccEscapeHtml(body) + '</div>' : '') +
+        (tags.length > 0 ? '<div class="inbox-tags">' + tags.map(t => '<span class="inbox-tag">' + ccEscapeHtml(t) + '</span>').join('') + '</div>' : '') +
+        '<div class="inbox-card-meta"><span>' + date + '</span>' + (urlLink ? '<span>' + urlLink + '</span>' : '') + '</div>' +
+        '<div class="inbox-card-actions">' +
+        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'task\\')">→ Task</button>' +
+        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'note\\')">→ Note</button>' +
+        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'archive\\')">Dismiss</button>' +
+        '</div>' +
+        '</div>';
+    }).join('');
+  } catch (err) { console.warn('ccLoadInbox failed', err); }
+}
+
+async function ccInboxSubmit(event) {
+  event.preventDefault();
+  const url = document.getElementById('inbox-url-input').value.trim();
+  const text = document.getElementById('inbox-text-input').value.trim();
+  if (!url && !text) return;
+  const btn = event.target.querySelector('button[type="submit"]');
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Ingesting…';
+  try {
+    await fetch('/api/inbox/ingest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_url: url, raw_text: text }) });
+    document.getElementById('inbox-url-input').value = '';
+    document.getElementById('inbox-text-input').value = '';
+    await ccLoadInbox();
+  } finally { btn.disabled = false; btn.textContent = prev; }
+}
+
+async function ccInboxAction(id, action) {
+  if (action === 'archive') {
+    await fetch('/api/inbox/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'archived' }) });
+    await ccLoadInbox();
+    return;
+  }
+  // Fetch the item
+  const r = await fetch('/api/inbox');
+  const data = await r.json();
+  const item = (data.items || []).find(i => i.id === id);
+  if (!item) return;
+  const titleLine = (item.summary || item.raw_text || '').split('\n')[0].slice(0, 80) || 'From inbox';
+  if (action === 'task') {
+    await fetch('/api/mission/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: titleLine, prompt: (item.summary || item.raw_text || '') + (item.source_url ? '\n\nSource: ' + item.source_url : '') }) });
+    if (typeof loadMissionBoard === 'function') loadMissionBoard();
+  } else if (action === 'note') {
+    const key = titleLine.replace(/[^a-z0-9]+/gi, '_').toLowerCase().slice(0, 40) || 'intel_' + id;
+    await fetch('/api/core-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value: (item.summary || item.raw_text || '').slice(0, 500), category: 'fact' }) });
+  }
+  await fetch('/api/inbox/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'actioned' }) });
+  await ccLoadInbox();
+  if (typeof ccLoadCoreMemory === 'function') ccLoadCoreMemory();
+}
+
+// Chain inbox load into the refresh cycle
+const _origRefreshPanels_inbox = refreshWorkspacePanels;
+refreshWorkspacePanels = async function() {
+  await _origRefreshPanels_inbox();
+  await ccLoadInbox();
 };
 
 // ── Phase 5: Daily Brief ───────────────────────────────────────────

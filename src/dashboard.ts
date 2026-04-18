@@ -1503,13 +1503,8 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     const src = (body?.source_url || '').trim();
     if (!raw && !src) return c.json({ error: 'raw_text or source_url required' }, 400);
     const bizId = businessIdForSlug(getBizSlug(c));
-    const { createInboxItem } = await import('./workspace-db.js');
-    const item = createInboxItem({
-      business_id: bizId,
-      source_type: src ? 'url' : 'text',
-      source_url: src,
-      raw_text: raw || src,
-    });
+    const { ingestItem } = await import('./jobs/inbox-ingest.js');
+    const item = await ingestItem({ business_id: bizId, raw_text: raw, source_url: src });
     return c.json({ item });
   });
   app.patch('/api/inbox/:id', async (c) => {

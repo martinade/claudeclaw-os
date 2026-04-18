@@ -1520,6 +1520,52 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ ok: true });
   });
 
+  // Calendar — expands cron expressions for a given month, returns
+  // { [YYYY-MM-DD]: [{id, prompt, schedule, hour, minute}] }
+  app.get('/api/calendar', async (c) => {
+    const { getDb } = await import('./db.js');
+    const { CronExpressionParser } = await import('cron-parser');
+    const slug = getBizSlug(c);
+    const bizId = businessIdForSlug(slug);
+    const monthStr = c.req.query('month') || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const [yStr, mStr] = monthStr.split('-');
+    const year = parseInt(yStr, 10);
+    const month = parseInt(mStr, 10); // 1-indexed human
+    if (!year || !month || month < 1 || month > 12) return c.json({ error: 'invalid month' }, 400);
+    const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const endOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
+    const db = getDb();
+    let tasks: Array<{ id: string; prompt: string; schedule: string; status: string; business_id: string | null }> = [];
+    if (slug === 'cross-business') {
+      tasks = db.prepare("SELECT id, prompt, schedule, status, business_id FROM scheduled_tasks WHERE status != 'deleted'").all() as typeof tasks;
+    } else {
+      tasks = db.prepare("SELECT id, prompt, schedule, status, business_id FROM scheduled_tasks WHERE status != 'deleted' AND (business_id = ? OR business_id IS NULL)").all(bizId) as typeof tasks;
+    }
+    const byDate: Record<string, Array<{ id: string; prompt: string; schedule: string; time: string }>> = {};
+    for (const t of tasks) {
+      try {
+        const interval = CronExpressionParser.parse(t.schedule, { currentDate: startOfMonth });
+        let safety = 200;
+        while (safety-- > 0) {
+          const next = interval.next().toDate();
+          if (next >= endOfMonth) break;
+          const key = next.toISOString().slice(0, 10);
+          const hh = String(next.getHours()).padStart(2, '0');
+          const mm = String(next.getMinutes()).padStart(2, '0');
+          (byDate[key] ||= []).push({
+            id: t.id,
+            prompt: t.prompt.slice(0, 120),
+            schedule: t.schedule,
+            time: `${hh}:${mm}`,
+          });
+        }
+      } catch (err) {
+        logger.warn({ err, cron: t.schedule, id: t.id }, 'calendar: cron parse failed');
+      }
+    }
+    return c.json({ month: monthStr, tasksByDate: byDate });
+  });
+
   let server: ReturnType<typeof serve>;
   try {
     server = serve({ fetch: app.fetch, port: DASHBOARD_PORT }, () => {

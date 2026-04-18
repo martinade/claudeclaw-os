@@ -324,6 +324,24 @@ const WARROOM_ENABLED = warroomEnabled;
   .quick-add-form-btns button { padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
   .quick-add-form-btns .cancel { background: transparent; color: var(--text-secondary); }
   .quick-add-form-btns .submit { background: var(--ws-accent); color: #000; }
+
+  /* ── Phase 4: Calendar ─────────────────────────────────────────── */
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-nav { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; }
+  .cal-nav button { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; }
+  .cal-nav button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+  .cal-nav-label { font-size: 13px; font-weight: 600; min-width: 130px; text-align: center; color: var(--text-primary); }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+  .cal-weekday { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding: 4px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(70px, auto); gap: 4px; }
+  .cal-cell { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 2px; min-height: 70px; overflow: hidden; }
+  .cal-cell.off { opacity: 0.3; }
+  .cal-cell.today { border-color: var(--ws-accent); background: rgba(var(--ws-accent-rgb), 0.04); }
+  .cal-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .cal-cell.today .cal-date { color: var(--ws-accent); font-weight: 600; }
+  .cal-pill { background: rgba(var(--ws-accent-rgb), 0.12); border-left: 2px solid var(--ws-accent); color: var(--text-primary); font-size: 10px; padding: 2px 4px; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; cursor: help; }
+  .cal-pill-time { font-family: 'JetBrains Mono', monospace; color: var(--ws-accent); font-weight: 600; margin-right: 3px; }
+  .cal-more { font-size: 10px; color: var(--text-muted); padding: 0 4px; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -710,6 +728,23 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Scheduled Tasks<span class="info-tip"><span class="info-icon">\u24D8</span><span class="info-tooltip">Automated tasks scheduled by the bot (e.g. reminders, checks). Shows the schedule, status, and time until next run.</span></span><button class="privacy-toggle" onclick="toggleSectionBlur('tasks')" title="Toggle blur">&#128065;</button></h2>
   <div id="tasks-container"><div class="card text-gray-500 text-sm">Loading...</div></div>
 </div>
+
+<!-- Phase 4: Calendar -->
+<section id="calendar-panel" class="glass-card ws-panel mt-5">
+  <div class="cal-header">
+    <div class="ws-panel-title">Calendar</div>
+    <div class="cal-nav">
+      <button onclick="ccCalendarPrev()" aria-label="Previous month">‹</button>
+      <div class="cal-nav-label" id="cal-label">—</div>
+      <button onclick="ccCalendarNext()" aria-label="Next month">›</button>
+      <button onclick="ccCalendarToday()">Today</button>
+    </div>
+  </div>
+  <div class="cal-weekdays">
+    <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+</section>
 
 <!-- Phase 3: Core Memory (Tier 1 — pinned facts) -->
 <section id="core-memory-panel" class="glass-card ws-panel mt-5">
@@ -3550,6 +3585,70 @@ async function ccQuickAddSubmit() {
     if (typeof refreshWorkspacePanels === 'function') refreshWorkspacePanels();
   } catch (err) { console.error(err); }
 }
+
+// ── Phase 4: Calendar ─────────────────────────────────────────────
+let CC_CAL_MONTH = (() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() + 1 }; })();
+const CC_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function ccCalendarPrev() { CC_CAL_MONTH.month--; if (CC_CAL_MONTH.month < 1) { CC_CAL_MONTH.month = 12; CC_CAL_MONTH.year--; } ccLoadCalendar(); }
+function ccCalendarNext() { CC_CAL_MONTH.month++; if (CC_CAL_MONTH.month > 12) { CC_CAL_MONTH.month = 1; CC_CAL_MONTH.year++; } ccLoadCalendar(); }
+function ccCalendarToday() { const d = new Date(); CC_CAL_MONTH = { year: d.getFullYear(), month: d.getMonth() + 1 }; ccLoadCalendar(); }
+
+async function ccLoadCalendar() {
+  const grid = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-label');
+  if (!grid || !label) return;
+  const { year, month } = CC_CAL_MONTH;
+  label.textContent = CC_MONTH_NAMES[month - 1] + ' ' + year;
+  const monthStr = year + '-' + String(month).padStart(2, '0');
+  let tasksByDate = {};
+  try {
+    const r = await fetch('/api/calendar?month=' + monthStr);
+    const data = await r.json();
+    tasksByDate = data.tasksByDate || {};
+  } catch (err) { console.warn('ccLoadCalendar fetch failed', err); }
+  const firstDay = new Date(year, month - 1, 1);
+  const firstWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysInPrev = new Date(year, month - 1, 0).getDate();
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+  const cells = [];
+  // Leading days from previous month
+  for (let i = firstWeekday - 1; i >= 0; i--) {
+    const d = daysInPrev - i;
+    cells.push({ date: d, key: null, off: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = monthStr + '-' + String(d).padStart(2, '0');
+    cells.push({ date: d, key, off: false, today: key === todayKey });
+  }
+  // Trailing days to complete 6x7 grid (42 cells)
+  while (cells.length < 42) {
+    const d = cells.length - firstWeekday - daysInMonth + 1;
+    cells.push({ date: d, key: null, off: true });
+  }
+  grid.innerHTML = cells.map(cell => {
+    const classes = ['cal-cell'];
+    if (cell.off) classes.push('off');
+    if (cell.today) classes.push('today');
+    const tasks = (cell.key && tasksByDate[cell.key]) || [];
+    const visible = tasks.slice(0, 2);
+    const extra = tasks.length - visible.length;
+    const pills = visible.map(t =>
+      '<div class="cal-pill" title="' + ccEscapeHtml(t.prompt) + ' (' + ccEscapeHtml(t.schedule) + ')"><span class="cal-pill-time">' + ccEscapeHtml(t.time) + '</span>' + ccEscapeHtml(t.prompt.slice(0, 50)) + '</div>'
+    ).join('');
+    const more = extra > 0 ? '<div class="cal-more">+' + extra + ' more</div>' : '';
+    return '<div class="' + classes.join(' ') + '"><div class="cal-date">' + cell.date + '</div>' + pills + more + '</div>';
+  }).join('');
+}
+
+// Re-run calendar when workspace switches (part of refreshWorkspacePanels)
+const _origRefreshWorkspacePanels = refreshWorkspacePanels;
+refreshWorkspacePanels = async function() {
+  await _origRefreshWorkspacePanels();
+  await ccLoadCalendar();
+};
 
 // Initial workspace-panel load once workspaces finish loading
 document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshWorkspacePanels, 300); });

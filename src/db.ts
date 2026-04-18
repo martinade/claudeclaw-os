@@ -67,6 +67,12 @@ export function decryptField(ciphertext: string): string {
 
 let db: Database.Database;
 
+/** Returns the shared Database handle. Throws if initDatabase() has not run. */
+export function getDb(): Database.Database {
+  if (!db) throw new Error('Database not initialized. Call initDatabase() first.');
+  return db;
+}
+
 function createSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -355,6 +361,106 @@ function createSchema(database: Database.Database): void {
       total_cost  REAL NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
+
+    -- ── Mission Control V1: Workspace-per-business ────────────────────
+    CREATE TABLE IF NOT EXISTS businesses (
+      id                     TEXT PRIMARY KEY,
+      slug                   TEXT NOT NULL UNIQUE,
+      name                   TEXT NOT NULL,
+      color_hex              TEXT NOT NULL DEFAULT '#FFD700',
+      icon_emoji             TEXT NOT NULL DEFAULT '🏢',
+      brief_md               TEXT NOT NULL DEFAULT '',
+      system_prompt_addendum TEXT NOT NULL DEFAULT '',
+      telegram_hashtag       TEXT NOT NULL DEFAULT '',
+      monthly_budget_usd     REAL NOT NULL DEFAULT 0,
+      daily_brief_cron       TEXT NOT NULL DEFAULT '0 7 * * *',
+      is_global              INTEGER NOT NULL DEFAULT 0,
+      archived               INTEGER NOT NULL DEFAULT 0,
+      created_at             INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_businesses_slug ON businesses(slug);
+
+    CREATE TABLE IF NOT EXISTS core_memory (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      key         TEXT NOT NULL,
+      value       TEXT NOT NULL,
+      category    TEXT NOT NULL DEFAULT 'fact',
+      updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_core_memory_biz ON core_memory(business_id, category);
+
+    CREATE TABLE IF NOT EXISTS priorities (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id TEXT REFERENCES businesses(id) ON DELETE CASCADE,
+      text        TEXT NOT NULL,
+      position    INTEGER NOT NULL DEFAULT 0,
+      done        INTEGER NOT NULL DEFAULT 0,
+      updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_priorities_biz ON priorities(business_id, done, position);
+
+    CREATE TABLE IF NOT EXISTS quick_links (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id TEXT REFERENCES businesses(id) ON DELETE CASCADE,
+      label       TEXT NOT NULL,
+      icon        TEXT NOT NULL DEFAULT '🔗',
+      url         TEXT NOT NULL,
+      position    INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS ideas (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      title        TEXT NOT NULL,
+      raw_text     TEXT NOT NULL,
+      developed_md TEXT NOT NULL DEFAULT '',
+      source_url   TEXT NOT NULL DEFAULT '',
+      created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS decisions (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id   TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      text          TEXT NOT NULL,
+      rationale     TEXT NOT NULL DEFAULT '',
+      alternatives  TEXT NOT NULL DEFAULT '[]',
+      created_at    INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS inbox_items (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id       TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      source_type       TEXT NOT NULL DEFAULT 'text',
+      source_url        TEXT NOT NULL DEFAULT '',
+      raw_text          TEXT NOT NULL,
+      summary           TEXT NOT NULL DEFAULT '',
+      action_items_json TEXT NOT NULL DEFAULT '[]',
+      tags_json         TEXT NOT NULL DEFAULT '[]',
+      status            TEXT NOT NULL DEFAULT 'unread',
+      created_at        INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_inbox_biz ON inbox_items(business_id, status, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS document_templates (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id    TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      name           TEXT NOT NULL,
+      doc_type       TEXT NOT NULL DEFAULT 'pdf',
+      body_md        TEXT NOT NULL,
+      variables_json TEXT NOT NULL DEFAULT '[]',
+      created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_doctemplates_biz ON document_templates(business_id);
+
+    CREATE TABLE IF NOT EXISTS documents (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      template_id  INTEGER REFERENCES document_templates(id) ON DELETE SET NULL,
+      title        TEXT NOT NULL,
+      content_md   TEXT NOT NULL,
+      created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
   `);
 }
 
@@ -619,6 +725,42 @@ function runMigrations(database: Database.Database): void {
   if (meetCols.length > 0 && !meetCols.some((c) => c.name === 'provider')) {
     database.exec(`ALTER TABLE meet_sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'pika'`);
     logger.info('Migration: added provider column to meet_sessions');
+  }
+
+  // Mission Control V1: workspace-per-business. Add nullable business_id to
+  // tables that carry per-workspace data. NULL = cross-business / legacy rows.
+  const tablesNeedingBiz = [
+    'mission_tasks',
+    'scheduled_tasks',
+    'memories',
+    'consolidations',
+    'hive_mind',
+    'inter_agent_tasks',
+    'audit_log',
+  ];
+  for (const tbl of tablesNeedingBiz) {
+    const info = database.prepare(`PRAGMA table_info(${tbl})`).all() as Array<{ name: string }>;
+    if (info.length > 0 && !info.some((c) => c.name === 'business_id')) {
+      database.exec(`ALTER TABLE ${tbl} ADD COLUMN business_id TEXT REFERENCES businesses(id) ON DELETE SET NULL`);
+      logger.info({ tbl }, 'Migration: added business_id column');
+    }
+  }
+
+  // Seed the cross-business workspace and the four known businesses.
+  // idempotent via INSERT OR IGNORE on the UNIQUE slug.
+  const seeds: Array<[string, string, string, string, string, number]> = [
+    ['cross-business', 'cross-business', 'Cross-Business', '🌐', '#64748b', 1],
+    ['biz_a',  'workspace-a',       'Concierge',       '📁', '#D4AF37', 0],
+    ['biz_b',     'workspace-b',  'Workspace B',  '📁', '#8B0000', 0],
+    ['biz_c',      'workspace-c',           'Workspace C',           '📁', '#00D4AA', 0],
+    ['biz_personal',   'personal',        'Personal',        '🏠', '#6366f1', 0],
+  ];
+  const seedStmt = database.prepare(
+    'INSERT OR IGNORE INTO businesses (id, slug, name, icon_emoji, color_hex, is_global, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  );
+  const now = Math.floor(Date.now() / 1000);
+  for (const [id, slug, name, icon, color, isGlobal] of seeds) {
+    seedStmt.run(id, slug, name, icon, color, isGlobal, now);
   }
 }
 

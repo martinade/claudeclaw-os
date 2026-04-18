@@ -68,6 +68,31 @@ import {
 import { processMessageFromDashboard } from './bot.js';
 import { getDashboardHtml } from './dashboard-html.js';
 import { getWarRoomHtml } from './warroom-html.js';
+import {
+  listBusinesses,
+  getBusinessBySlug,
+  createBusiness,
+  updateBusiness,
+  archiveBusiness,
+  listPriorities,
+  createPriority,
+  updatePriority,
+  deletePriority,
+  listQuickLinks,
+  createQuickLink,
+  updateQuickLink,
+  deleteQuickLink,
+  listCoreMemory,
+  upsertCoreMemory,
+  deleteCoreMemory,
+  listIdeas,
+  createIdea,
+  listDecisions,
+  createDecision,
+  listInboxItems,
+  updateInboxStatus,
+} from './workspace-db.js';
+import { businessIdForSlug, invalidateWorkspaceCache, resolveSlug } from './workspace-service.js';
 import { WARROOM_ENABLED, WARROOM_PORT } from './config.js';
 import { logger } from './logger.js';
 import { getTelegramConnected, getBotInfo, chatEvents, getIsProcessing, abortActiveQuery, ChatEvent } from './state.js';
@@ -1317,6 +1342,167 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     if (!chatId) return c.json({ ok: false, reason: 'not_processing' });
     const aborted = abortActiveQuery(chatId);
     return c.json({ ok: aborted });
+  });
+
+  // ── Mission Control V1: Workspace-per-business ─────────────────────
+  // `?b=<slug>` or path `/b/<slug>` selects the active workspace for the
+  // request. `businessIdForSlug` returns null for the cross-business
+  // workspace (meaning "do not filter"); the workspace-db layer treats
+  // null as "scope to NULL-tagged rows only". Route handlers decide
+  // whether to pass the resolved business id or null.
+
+  const getBizSlug = (c: { req: { query: (k: string) => string | undefined } }): string => {
+    return c.req.query('b') || 'cross-business';
+  };
+
+  // Bookmarkable workspace URL — serves the same dashboard HTML with the
+  // active workspace embedded as `?b=<slug>` for client-side JS to read.
+  app.get('/b/:slug', (c) => {
+    const slug = c.req.param('slug');
+    const biz = resolveSlug(slug);
+    if (!biz) return c.redirect(`/?token=${DASHBOARD_TOKEN}`, 302);
+    const chatId = c.req.query('chatId') || '';
+    return c.html(getDashboardHtml(DASHBOARD_TOKEN, chatId, WARROOM_ENABLED));
+  });
+
+  // Workspaces CRUD
+  app.get('/api/workspaces', (c) => {
+    const includeArchived = c.req.query('all') === '1';
+    return c.json({ workspaces: listBusinesses(includeArchived) });
+  });
+
+  app.post('/api/workspaces', async (c) => {
+    const body = await c.req.json<{
+      slug: string;
+      name: string;
+      color_hex?: string;
+      icon_emoji?: string;
+      brief_md?: string;
+      daily_brief_cron?: string;
+      monthly_budget_usd?: number;
+    }>();
+    if (!body?.slug || !body?.name) return c.json({ error: 'slug and name required' }, 400);
+    if (getBusinessBySlug(body.slug)) return c.json({ error: 'slug already exists' }, 409);
+    const biz = createBusiness(body);
+    invalidateWorkspaceCache();
+    return c.json({ workspace: biz });
+  });
+
+  app.patch('/api/workspaces/:id', async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json<Record<string, unknown>>();
+    const biz = updateBusiness(id, body as Parameters<typeof updateBusiness>[1]);
+    invalidateWorkspaceCache();
+    if (!biz) return c.json({ error: 'not found' }, 404);
+    return c.json({ workspace: biz });
+  });
+
+  app.delete('/api/workspaces/:id', (c) => {
+    archiveBusiness(c.req.param('id'));
+    invalidateWorkspaceCache();
+    return c.json({ ok: true });
+  });
+
+  // Priorities
+  app.get('/api/priorities', (c) => {
+    const slug = getBizSlug(c);
+    const bizId = businessIdForSlug(slug);
+    return c.json({ priorities: listPriorities(bizId, { includeDone: c.req.query('done') === '1' }) });
+  });
+  app.post('/api/priorities', async (c) => {
+    const body = await c.req.json<{ text: string }>();
+    if (!body?.text) return c.json({ error: 'text required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ priority: createPriority(bizId, body.text) });
+  });
+  app.patch('/api/priorities/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    const body = await c.req.json<{ text?: string; position?: number; done?: number }>();
+    const p = updatePriority(id, body);
+    if (!p) return c.json({ error: 'not found' }, 404);
+    return c.json({ priority: p });
+  });
+  app.delete('/api/priorities/:id', (c) => {
+    deletePriority(parseInt(c.req.param('id'), 10));
+    return c.json({ ok: true });
+  });
+
+  // Quick links
+  app.get('/api/quick-links', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ links: listQuickLinks(bizId) });
+  });
+  app.post('/api/quick-links', async (c) => {
+    const body = await c.req.json<{ label: string; url: string; icon?: string }>();
+    if (!body?.label || !body?.url) return c.json({ error: 'label and url required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ link: createQuickLink(bizId, body) });
+  });
+  app.patch('/api/quick-links/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    const body = await c.req.json<{ label?: string; url?: string; icon?: string; position?: number }>();
+    const link = updateQuickLink(id, body);
+    if (!link) return c.json({ error: 'not found' }, 404);
+    return c.json({ link });
+  });
+  app.delete('/api/quick-links/:id', (c) => {
+    deleteQuickLink(parseInt(c.req.param('id'), 10));
+    return c.json({ ok: true });
+  });
+
+  // Core memory (tier-1 pinned facts)
+  app.get('/api/core-memory', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const category = c.req.query('category') || undefined;
+    return c.json({ memory: listCoreMemory(bizId, { category }) });
+  });
+  app.post('/api/core-memory', async (c) => {
+    const body = await c.req.json<{ id?: number; key: string; value: string; category?: string }>();
+    if (!body?.key || !body?.value) return c.json({ error: 'key and value required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ memory: upsertCoreMemory({ ...body, business_id: bizId }) });
+  });
+  app.delete('/api/core-memory/:id', (c) => {
+    deleteCoreMemory(parseInt(c.req.param('id'), 10));
+    return c.json({ ok: true });
+  });
+
+  // Ideas
+  app.get('/api/ideas', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ ideas: listIdeas(bizId) });
+  });
+  app.post('/api/ideas', async (c) => {
+    const body = await c.req.json<{ title: string; raw_text: string; source_url?: string }>();
+    if (!body?.title || !body?.raw_text) return c.json({ error: 'title and raw_text required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ idea: createIdea(bizId, body) });
+  });
+
+  // Decisions
+  app.get('/api/decisions', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ decisions: listDecisions(bizId) });
+  });
+  app.post('/api/decisions', async (c) => {
+    const body = await c.req.json<{ text: string; rationale?: string; alternatives?: string[] }>();
+    if (!body?.text) return c.json({ error: 'text required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    return c.json({ decision: createDecision(bizId, body) });
+  });
+
+  // Inbox (list + status update; ingest route added in Phase 7)
+  app.get('/api/inbox', (c) => {
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const status = c.req.query('status') || undefined;
+    return c.json({ items: listInboxItems(bizId, { status }) });
+  });
+  app.patch('/api/inbox/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    const body = await c.req.json<{ status: string }>();
+    if (!body?.status) return c.json({ error: 'status required' }, 400);
+    updateInboxStatus(id, body.status);
+    return c.json({ ok: true });
   });
 
   let server: ReturnType<typeof serve>;

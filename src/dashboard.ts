@@ -35,6 +35,9 @@ import {
   deleteMissionTask,
   reassignMissionTask,
   setMissionTaskStatus,
+  setMissionTaskDueAt,
+  setMissionTaskStartAt,
+  getMissionTasksByDueRange,
   assignMissionTask,
   getUnassignedMissionTasks,
   getMissionTaskHistory,
@@ -695,12 +698,24 @@ export function startDashboard(botApi?: Api<RawApi>): void {
       prompt?: string;
       assigned_agent?: string;
       priority?: number;
+      due_at?: number | null;
+      start_at?: number | null;
     }>();
 
     const title = body?.title?.trim();
     const prompt = body?.prompt?.trim();
     const assignedAgent = body?.assigned_agent?.trim() || null;
     const priority = Math.max(0, Math.min(10, body?.priority ?? 0));
+    const sanitiseTs = (raw: unknown): number | null => {
+      if (raw === null || raw === undefined) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? Math.floor(n) : null;
+    };
+    const dueAt = sanitiseTs(body?.due_at);
+    const startAt = sanitiseTs(body?.start_at);
+    if (startAt && dueAt && startAt > dueAt) {
+      return c.json({ error: 'start_at must be <= due_at' }, 400);
+    }
 
     if (!title || title.length > 200) return c.json({ error: 'title required (max 200 chars)' }, 400);
     if (!prompt || prompt.length > 10000) return c.json({ error: 'prompt required (max 10000 chars)' }, 400);
@@ -714,7 +729,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     }
 
     const id = crypto.randomBytes(4).toString('hex');
-    createMissionTask(id, title, prompt, assignedAgent, 'dashboard', priority);
+    createMissionTask(id, title, prompt, assignedAgent, 'dashboard', priority, dueAt, startAt);
 
     const task = getMissionTask(id);
     return c.json({ task }, 201);
@@ -757,7 +772,33 @@ export function startDashboard(botApi?: Api<RawApi>): void {
 
   app.patch('/api/mission/tasks/:id', async (c) => {
     const id = c.req.param('id');
-    const body = await c.req.json<{ assigned_agent?: string; status?: string }>();
+    const body = await c.req.json<{
+      assigned_agent?: string;
+      status?: string;
+      due_at?: number | null;
+      start_at?: number | null;
+    }>();
+    const sanitiseTs = (raw: unknown): number | null => {
+      if (raw === null || raw === undefined) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? Math.floor(n) : null;
+    };
+    // Date updates (nullable — null/0 clears). Both fields may be sent together.
+    let dateTouched = false;
+    if (body?.due_at !== undefined) {
+      setMissionTaskDueAt(id, sanitiseTs(body.due_at));
+      dateTouched = true;
+    }
+    if (body?.start_at !== undefined) {
+      setMissionTaskStartAt(id, sanitiseTs(body.start_at));
+      dateTouched = true;
+    }
+    if (dateTouched) {
+      const task = getMissionTask(id);
+      if (!task) return c.json({ error: 'not found' }, 404);
+      // Fall through so a single PATCH can also carry status/agent.
+      if (!body.status && !body.assigned_agent) return c.json({ ok: true, task });
+    }
     // Status update (Kanban column move)
     if (body?.status) {
       const status = body.status.trim();
@@ -772,7 +813,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     }
     // Agent reassignment
     const newAgent = body?.assigned_agent?.trim();
-    if (!newAgent) return c.json({ error: 'assigned_agent or status required' }, 400);
+    if (!newAgent) return c.json({ error: 'assigned_agent, status, or due_at required' }, 400);
     const validAgents = ['main', ...listAgentIds()];
     if (!validAgents.includes(newAgent)) return c.json({ error: 'Unknown agent' }, 400);
     const ok = reassignMissionTask(id, newAgent);
@@ -1590,6 +1631,16 @@ export function startDashboard(botApi?: Api<RawApi>): void {
       const mm = String(d.getMinutes()).padStart(2, '0');
       todaySchedule.push({ time: `${hh}:${mm}`, title: ev.title.slice(0, 80), source: ev.event_type });
     }
+    // Mission tasks due today
+    const missionBizFilter = biz.is_global ? undefined : bizId;
+    const dueToday = getMissionTasksByDueRange(startOfDay, endOfDay, missionBizFilter);
+    for (const m of dueToday) {
+      if (!m.due_at) continue;
+      const d = new Date(m.due_at * 1000);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      todaySchedule.push({ time: `${hh}:${mm}`, title: m.title.slice(0, 80), source: 'task' });
+    }
     todaySchedule.sort((a, b) => a.time.localeCompare(b.time));
 
     // Agent status
@@ -2019,7 +2070,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     } else {
       tasks = db.prepare("SELECT id, prompt, schedule, status, business_id FROM scheduled_tasks WHERE status != 'deleted' AND (business_id = ? OR business_id IS NULL)").all(bizId) as typeof tasks;
     }
-    const byDate: Record<string, Array<{ id: string; prompt: string; schedule: string; time: string; source: 'cron' | 'event'; event_type?: string }>> = {};
+    const byDate: Record<string, Array<{ id: string; prompt: string; schedule: string; time: string; source: 'cron' | 'event' | 'mission'; event_type?: string }>> = {};
     for (const t of tasks) {
       try {
         const interval = CronExpressionParser.parse(t.schedule, { currentDate: startOfMonth });
@@ -2061,6 +2112,25 @@ export function startDashboard(botApi?: Api<RawApi>): void {
         time: `${hh}:${mm}`,
         source: 'event',
         event_type: ev.event_type,
+      });
+    }
+    // Merge mission_tasks with a due_at in this window — Kanban cards now
+    // surface on the Calendar on their due day.
+    const missionDueBiz = slug === 'cross-business' ? undefined : bizId;
+    const mtDue = getMissionTasksByDueRange(fromTs, toTs, missionDueBiz);
+    for (const m of mtDue) {
+      if (!m.due_at) continue;
+      const d = new Date(m.due_at * 1000);
+      const key = d.toISOString().slice(0, 10);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      (byDate[key] ||= []).push({
+        id: 'mission_' + m.id,
+        prompt: m.title.slice(0, 120),
+        schedule: m.status,
+        time: `${hh}:${mm}`,
+        source: 'mission',
+        event_type: 'task',
       });
     }
     return c.json({ month: monthStr, tasksByDate: byDate });

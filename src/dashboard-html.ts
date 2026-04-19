@@ -368,16 +368,18 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-pill.event .cal-pill-time { color: #a5b4fc; }
   .cal-cell.has-events { background: rgba(255,255,255,0.03); cursor: pointer; }
   .cal-cell.has-events:hover { border-color: rgba(var(--ws-accent-rgb), 0.4); }
-  /* Week view */
-  .cal-week-grid { display: grid; grid-template-columns: 60px repeat(7, 1fr); gap: 4px; }
+  /* Week view — minimum per-day width so cells stay usable when the day panel is open */
+  #cal-grid-card { overflow-x: auto; }
+  .cal-week-grid { display: grid; grid-template-columns: 60px repeat(7, minmax(80px, 1fr)); gap: 4px; min-width: 620px; }
   .cal-week-dayhead { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding: 6px 0; }
   .cal-week-dayhead.today-col { color: var(--ws-accent); }
   .cal-week-hour-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); padding: 6px 4px; text-align: right; border-right: 1px solid var(--border-subtle); }
-  .cal-week-cell { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 4px; min-height: 42px; padding: 2px 3px; display: flex; flex-direction: column; gap: 2px; }
+  .cal-week-cell { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 4px; min-height: 42px; padding: 2px 3px; display: flex; flex-direction: column; gap: 2px; cursor: crosshair; }
   .cal-week-cell.today-col { background: rgba(var(--ws-accent-rgb), 0.03); }
-  /* Day detail side panel */
+  /* Day detail side panel — only claim sidebar space on wide desktops so the
+     grid doesn't get squeezed. Below 1280px the panel stacks under the grid. */
   .cal-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 1100px) { .cal-layout.with-panel { grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr); } }
+  @media (min-width: 1280px) { .cal-layout.with-panel { grid-template-columns: minmax(0, 2.6fr) minmax(280px, 1fr); } }
   .cal-day-panel { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; height: fit-content; max-height: 640px; overflow-y: auto; }
   .cal-day-panel h3 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 700; margin: 0; color: var(--text-primary); }
   .cal-day-panel .date-sub { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
@@ -541,6 +543,10 @@ const WARROOM_ENABLED = warroomEnabled;
   .mk-badge.priority-low      { background: rgba(107,114,128,0.15); color: #9ca3af; border-color: rgba(107,114,128,0.4); }
   .mk-badge.agent             { background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-subtle); }
   .mk-badge.agent.dot-live::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--status-online); margin-right: 4px; vertical-align: middle; }
+  .mk-badge.date-chip.tone-overdue { background: rgba(239,68,68,0.15);  color: #f87171; border-color: rgba(239,68,68,0.35); }
+  .mk-badge.date-chip.tone-soon    { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.35); }
+  .mk-badge.date-chip.tone-near    { background: rgba(99,102,241,0.12); color: #a5b4fc; border-color: rgba(99,102,241,0.35); }
+  .mk-badge.date-chip.tone-far     { background: rgba(255,255,255,0.04); color: var(--text-muted); border-color: var(--border-subtle); }
   .mk-card-advance { position: absolute; top: 10px; right: 10px; background: transparent; border: 1px solid var(--border-subtle); border-radius: 4px; width: 24px; height: 24px; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0; transition: opacity 0.15s; }
   .mk-card:hover .mk-card-advance { opacity: 1; }
   .mk-card-advance:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
@@ -997,11 +1003,22 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div style="padding:0 16px 16px">
     <input type="text" id="mission-title" placeholder="Title" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:8px 12px;color:#e0e0e0;font-size:13px;outline:none;margin-bottom:8px;box-sizing:border-box" maxlength="200">
     <textarea id="mission-prompt" rows="3" placeholder="What should the agent do?" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:8px 12px;color:#e0e0e0;font-size:13px;outline:none;resize:vertical;margin-bottom:8px;box-sizing:border-box" maxlength="10000"></textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div>
+        <label for="mission-start" style="display:block;font-size:10px;color:#9ca3af;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Start (optional)</label>
+        <input type="datetime-local" id="mission-start" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="mission-due" style="display:block;font-size:10px;color:#9ca3af;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Due (optional)</label>
+        <input type="datetime-local" id="mission-due" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none;box-sizing:border-box">
+      </div>
+    </div>
     <div class="flex gap-2 items-center">
       <select id="mission-priority" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none">
-        <option value="0">Low</option>
-        <option value="5" selected>Medium</option>
-        <option value="10">High</option>
+        <option value="1">Low</option>
+        <option value="4" selected>Medium</option>
+        <option value="7">High</option>
+        <option value="10">Critical</option>
       </select>
       <button onclick="createMissionTask()" style="flex:1;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:600;cursor:pointer">Create</button>
     </div>
@@ -3518,6 +3535,21 @@ function ccKanbanRender() {
   if (autoBtn) autoBtn.style.display = unassignedCount > 0 ? '' : 'none';
 }
 
+function ccKanbanFormatDateChip(ts) {
+  const d = new Date(ts * 1000);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dayMs = 86400 * 1000;
+  const dayDiff = Math.round((d.getTime() - today.getTime()) / dayMs);
+  const shortDate = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  const timeStr = hasTime ? (' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')) : '';
+  if (dayDiff === 0) return { label: 'Today' + timeStr, tone: 'soon' };
+  if (dayDiff === 1) return { label: 'Tomorrow' + timeStr, tone: 'soon' };
+  if (dayDiff < 0) return { label: shortDate + timeStr, tone: 'overdue' };
+  if (dayDiff < 7) return { label: shortDate + timeStr, tone: 'near' };
+  return { label: shortDate + timeStr, tone: 'far' };
+}
+
 function ccKanbanRenderCard(t, status) {
   const bucket = ccKanbanPriorityBucket(t.priority || 0);
   const agent = t.assigned_agent ? missionAgentsList.find((a) => a.id === t.assigned_agent) : null;
@@ -3529,6 +3561,17 @@ function ccKanbanRenderCard(t, status) {
     : status === 'in_progress'
       ? '<button class="mk-card-advance" onclick="event.stopPropagation();ccKanbanAdvance(\\'' + t.id + '\\', \\'completed\\')" title="Move to Done">✓</button>'
       : '';
+  let dateChips = '';
+  if (t.start_at) {
+    const c = ccKanbanFormatDateChip(t.start_at);
+    dateChips += '<span class="mk-badge date-chip tone-' + c.tone + '">▶ ' + ccEscapeHtml(c.label) + '</span>';
+  }
+  if (t.due_at) {
+    const c = ccKanbanFormatDateChip(t.due_at);
+    // Completed tasks shouldn't scream "overdue" — tone it down.
+    const tone = status === 'completed' ? 'far' : c.tone;
+    dateChips += '<span class="mk-badge date-chip tone-' + tone + '">⚑ ' + ccEscapeHtml(c.label) + '</span>';
+  }
   return '<div class="mk-card" data-col="' + status + '" data-mid="' + t.id + '" draggable="true"' +
     ' ondragstart="ccKanbanDragStart(event)" ondragend="ccKanbanDragEnd(event)"' +
     ' onclick="ccKanbanOpen(\\'' + t.id + '\\')">' +
@@ -3538,6 +3581,7 @@ function ccKanbanRenderCard(t, status) {
     '<div class="mk-card-badges">' +
       '<span class="mk-badge priority-' + bucket + '">' + bucket + '</span>' +
       '<span class="mk-badge agent' + agentDotCls + '">' + ccEscapeHtml(agentLabel) + '</span>' +
+      dateChips +
     '</div>' +
   '</div>';
 }
@@ -3778,7 +3822,9 @@ function closeMissionModal() {
   m.style.transform = 'translate(-50%,-50%) scale(0.95)';
   document.getElementById('mission-title').value = '';
   document.getElementById('mission-prompt').value = '';
-  document.getElementById('mission-priority').value = '5';
+  document.getElementById('mission-priority').value = '4';
+  const sEl = document.getElementById('mission-start'); if (sEl) sEl.value = '';
+  const dEl = document.getElementById('mission-due'); if (dEl) dEl.value = '';
   document.getElementById('mission-error').style.display = 'none';
 }
 document.getElementById('mission-overlay').addEventListener('click', closeMissionModal);
@@ -3787,16 +3833,29 @@ async function createMissionTask() {
   const title = document.getElementById('mission-title').value.trim();
   const prompt = document.getElementById('mission-prompt').value.trim();
   const priority = parseInt(document.getElementById('mission-priority').value, 10);
+  const startRaw = (document.getElementById('mission-start') || {}).value || '';
+  const dueRaw = (document.getElementById('mission-due') || {}).value || '';
+  const startAt = startRaw ? Math.floor(new Date(startRaw).getTime() / 1000) : null;
+  const dueAt = dueRaw ? Math.floor(new Date(dueRaw).getTime() / 1000) : null;
   const errEl = document.getElementById('mission-error');
 
   if (!title) { errEl.textContent = 'Title is required'; errEl.style.display = ''; return; }
   if (!prompt) { errEl.textContent = 'Prompt is required'; errEl.style.display = ''; return; }
+  if (startAt && dueAt && startAt > dueAt) {
+    errEl.textContent = 'Start date must be before due date';
+    errEl.style.display = '';
+    return;
+  }
+
+  // Pre-seed the Kanban column this task lands in — supports the per-column
+  // "+ Add Task" buttons setting CC_KANBAN_ADD_STATUS before opening the modal.
+  const initialStatus = window.CC_KANBAN_ADD_STATUS;
 
   try {
     const res = await fetch(BASE + '/api/mission/tasks?token=' + TOKEN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title, prompt: prompt, priority: priority }),
+      body: JSON.stringify({ title, prompt, priority, due_at: dueAt, start_at: startAt }),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -3804,6 +3863,23 @@ async function createMissionTask() {
       errEl.style.display = '';
       return;
     }
+    // If this open came from a column-specific "+ Add Task" button, move the
+    // newly-created task to that column. Backlog ("queued") is the default
+    // so we only PATCH when the target is in_progress or completed.
+    if (initialStatus && initialStatus !== 'queued') {
+      try {
+        const created = await res.clone().json();
+        const newId = created && created.task && created.task.id;
+        if (newId) {
+          await fetch(BASE + '/api/mission/tasks/' + newId + '?token=' + TOKEN, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: initialStatus }),
+          });
+        }
+      } catch {}
+    }
+    delete window.CC_KANBAN_ADD_STATUS;
     closeMissionModal();
     await loadMissionControl();
   } catch(e) {
@@ -4486,7 +4562,14 @@ let CC_CAL_SELECTED_DAY = null; // 'YYYY-MM-DD'
 let CC_CAL_EDITING = null; // event row being edited
 const CC_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-function ccCalendarSetView(v) { CC_CAL_VIEW = v; ccLoadCalendar(); }
+function ccCalendarSetView(v) {
+  CC_CAL_VIEW = v;
+  // Close the day-detail panel when switching views — the selected day is
+  // likely out of the new view's visible range, which was the source of
+  // the "Week of Apr 13-19 but panel shows April 1" mismatch.
+  ccCalCloseDayPanel();
+  ccLoadCalendar();
+}
 function ccCalendarPrev() {
   if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() - 7);
   else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() - 1, 1);

@@ -761,6 +761,21 @@ function runMigrations(database: Database.Database): void {
     logger.info('Migration: added provider column to meet_sessions');
   }
 
+  // Calendar wire-up: mission_tasks gain nullable start_at + due_at so
+  // cards appear on the Calendar (and in Daily Brief's "due today"
+  // slice). Both columns are nullable + idempotently guarded.
+  const mtCols = database.prepare(`PRAGMA table_info(mission_tasks)`).all() as Array<{ name: string }>;
+  if (mtCols.length > 0 && !mtCols.some((c) => c.name === 'due_at')) {
+    database.exec(`ALTER TABLE mission_tasks ADD COLUMN due_at INTEGER`);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_at ON mission_tasks(due_at)`);
+    logger.info('Migration: added due_at to mission_tasks');
+  }
+  if (mtCols.length > 0 && !mtCols.some((c) => c.name === 'start_at')) {
+    database.exec(`ALTER TABLE mission_tasks ADD COLUMN start_at INTEGER`);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_mission_tasks_start_at ON mission_tasks(start_at)`);
+    logger.info('Migration: added start_at to mission_tasks');
+  }
+
   // Mission Control V1 Phase 4b: extend inbox_items with importance + category.
   // Nullable so existing rows keep working; ingest pipeline populates them going forward.
   const inboxCols = database.prepare(`PRAGMA table_info(inbox_items)`).all() as Array<{ name: string }>;
@@ -2177,6 +2192,8 @@ export interface MissionTask {
   created_at: number;
   started_at: number | null;
   completed_at: number | null;
+  due_at: number | null;
+  start_at: number | null;
 }
 
 export function createMissionTask(
@@ -2186,12 +2203,55 @@ export function createMissionTask(
   assignedAgent: string | null = null,
   createdBy = 'dashboard',
   priority = 0,
+  dueAt: number | null = null,
+  startAt: number | null = null,
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
-    `INSERT INTO mission_tasks (id, title, prompt, assigned_agent, status, created_by, priority, created_at)
-     VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`,
-  ).run(id, title, prompt, assignedAgent, createdBy, priority, now);
+    `INSERT INTO mission_tasks (id, title, prompt, assigned_agent, status, created_by, priority, created_at, due_at, start_at)
+     VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`,
+  ).run(id, title, prompt, assignedAgent, createdBy, priority, now, dueAt, startAt);
+}
+
+/** Set or clear a mission_task's due date (unix seconds, or null to clear). */
+export function setMissionTaskDueAt(id: string, dueAt: number | null): boolean {
+  const result = db.prepare('UPDATE mission_tasks SET due_at = ? WHERE id = ?').run(dueAt, id);
+  return result.changes > 0;
+}
+
+/** Set or clear a mission_task's planned start date. */
+export function setMissionTaskStartAt(id: string, startAt: number | null): boolean {
+  const result = db.prepare('UPDATE mission_tasks SET start_at = ? WHERE id = ?').run(startAt, id);
+  return result.changes > 0;
+}
+
+/**
+ * Mission tasks with a due_at within [fromTs, toTs]. Used by the calendar
+ * merger so Kanban tasks show up on their scheduled day alongside events
+ * and cron-expanded scheduled_tasks.
+ */
+export function getMissionTasksByDueRange(
+  fromTs: number,
+  toTs: number,
+  businessId?: string | null,
+): MissionTask[] {
+  if (businessId === undefined) {
+    return db.prepare(
+      `SELECT * FROM mission_tasks WHERE due_at IS NOT NULL AND due_at >= ? AND due_at < ?
+       ORDER BY due_at ASC`,
+    ).all(fromTs, toTs) as MissionTask[];
+  }
+  if (businessId === null) {
+    return db.prepare(
+      `SELECT * FROM mission_tasks WHERE due_at IS NOT NULL AND due_at >= ? AND due_at < ? AND business_id IS NULL
+       ORDER BY due_at ASC`,
+    ).all(fromTs, toTs) as MissionTask[];
+  }
+  return db.prepare(
+    `SELECT * FROM mission_tasks WHERE due_at IS NOT NULL AND due_at >= ? AND due_at < ?
+     AND (business_id = ? OR business_id IS NULL)
+     ORDER BY due_at ASC`,
+  ).all(fromTs, toTs, businessId) as MissionTask[];
 }
 
 export function getUnassignedMissionTasks(): MissionTask[] {

@@ -122,6 +122,82 @@ const voiceEnabledChats = new Set<string>();
 // When not set, uses CLI default (Opus via Max/OAuth)
 const chatModelOverride = new Map<string, string>();
 
+// ── /task pending state (Mission Control V1) ─────────────────────────
+// When a user invokes /task with no args, the bot waits for the NEXT
+// message (voice or text) from that chat to become the task title, then
+// sends inline priority buttons. State auto-expires after 2 minutes so a
+// stale /task doesn't silently swallow normal conversation later.
+interface PendingTask {
+  stage: 'awaiting_content' | 'awaiting_priority';
+  expires: number;           // epoch ms
+  id?: string;               // correlation id threaded into callback data
+  text?: string;              // captured task content once we have it
+}
+const ccPendingTask = new Map<string, PendingTask>();
+
+function ccPendingTaskCapture(chatIdStr: string, text: string): void {
+  const id = Math.random().toString(36).slice(2, 10);
+  ccPendingTask.set(chatIdStr, {
+    stage: 'awaiting_priority',
+    expires: Date.now() + 120_000,
+    id,
+    text: text.trim(),
+  });
+}
+
+function ccPendingTaskPriorityPrompt(text: string): string {
+  const preview = text.trim().slice(0, 200);
+  return `Task:\n${preview}\n\nPick a priority.`;
+}
+
+function ccPendingTaskPriorityKeyboard(): { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> } {
+  const pending = Array.from(ccPendingTask.values()).pop();
+  const id = pending?.id ?? 'anon';
+  return {
+    inline_keyboard: [
+      [
+        { text: '🔴 Critical', callback_data: `task_priority:${id}:10` },
+        { text: '🟠 High',     callback_data: `task_priority:${id}:7` },
+      ],
+      [
+        { text: '🟡 Medium',   callback_data: `task_priority:${id}:4` },
+        { text: '⚪ Low',       callback_data: `task_priority:${id}:1` },
+      ],
+    ],
+  };
+}
+
+function ccPriorityLabel(priority: number): string {
+  if (priority >= 9) return 'Critical';
+  if (priority >= 6) return 'High';
+  if (priority >= 3) return 'Medium';
+  return 'Low';
+}
+
+/**
+ * Check whether an incoming text or voice message should be consumed by the
+ * pending-task flow instead of going to the normal Claude handler. Returns
+ * true when the message was handled (caller should return early). Prunes
+ * expired state automatically.
+ */
+async function ccTryConsumePendingTask(
+  chatIdStr: string,
+  text: string,
+  reply: (msg: string, extra?: unknown) => Promise<unknown>,
+): Promise<boolean> {
+  const pending = ccPendingTask.get(chatIdStr);
+  if (!pending) return false;
+  if (Date.now() > pending.expires) {
+    ccPendingTask.delete(chatIdStr);
+    return false;
+  }
+  if (pending.stage !== 'awaiting_content') return false;
+  if (!text.trim()) return false;
+  ccPendingTaskCapture(chatIdStr, text);
+  await reply(ccPendingTaskPriorityPrompt(text), { reply_markup: ccPendingTaskPriorityKeyboard() });
+  return true;
+}
+
 const AVAILABLE_MODELS: Record<string, string> = {
   opus: 'claude-opus-4-6',
   sonnet: 'claude-sonnet-4-5',
@@ -863,6 +939,9 @@ export function createBot(): Bot {
     { command: 'delegate', description: 'Delegate task to agent' },
     { command: 'lock', description: 'Lock session (requires PIN to unlock)' },
     { command: 'status', description: 'Show security status' },
+    { command: 'b', description: 'Switch workspace (e.g. /b workspace-b)' },
+    { command: 'task', description: 'Add a task to the Backlog (voice or text)' },
+    { command: 'intel', description: 'Save a URL/text to the Intel Pipeline' },
   ];
   const skillCommands = discoverSkillCommands();
   const allCommands = [...builtInCommands, ...skillCommands].slice(0, 100); // Telegram limit: 100 commands
@@ -931,6 +1010,77 @@ export function createBot(): Bot {
 
     setActiveWorkspace(ctx.chat!.id.toString(), biz.slug);
     await ctx.reply(`Switched to ${biz.name} ${biz.icon_emoji}\n/b <slug> to switch. /b list to see all.`);
+  });
+
+  // Mission Control V1: /task [text] — capture a task (text OR next voice)
+  // and prompt for priority via inline buttons. The created task lands in
+  // the active workspace's Backlog.
+  //
+  // Flow:
+  //   /task                 → "Send voice or text for the task." Next message in
+  //                           this chat within 120s becomes the task title.
+  //   /task <text>          → title captured immediately; bot sends priority
+  //                           buttons right away.
+  //   Voice note (pending)  → transcribed via Groq, becomes the title.
+  //   Priority button tap   → creates the mission_task in active workspace's
+  //                           Backlog, replies with confirmation + dashboard link.
+  //
+  // Existing speech handlers (text + voice) check CC_PENDING_TASK at the top
+  // and route to this flow when set, otherwise continue normally — no
+  // alteration to the default bot speech/composition path.
+  bot.command('task', async (ctx) => {
+    if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;
+    const chatIdStr = ctx.chat!.id.toString();
+    const arg = (ctx.match || '').trim();
+    if (arg) {
+      ccPendingTaskCapture(chatIdStr, arg);
+      await ctx.reply(ccPendingTaskPriorityPrompt(arg), { reply_markup: ccPendingTaskPriorityKeyboard() });
+      return;
+    }
+    // No arg — set pending state and wait for the next message (voice or text).
+    ccPendingTask.set(chatIdStr, { stage: 'awaiting_content', expires: Date.now() + 120_000 });
+    await ctx.reply('Send me the task as a voice note or text. Expires in 2 minutes.');
+  });
+
+  // Priority button callback handler. `data` format: "task_priority:<id>:<n>"
+  bot.on('callback_query:data', async (ctx) => {
+    const data = ctx.callbackQuery.data || '';
+    if (!data.startsWith('task_priority:')) return; // let other handlers act
+    const parts = data.split(':');
+    const pendingId = parts[1];
+    const priority = parseInt(parts[2], 10);
+    const label = ccPriorityLabel(priority);
+    const chatIdStr = ctx.chat!.id.toString();
+    const pending = ccPendingTask.get(chatIdStr);
+    if (!pending || pending.stage !== 'awaiting_priority' || pending.id !== pendingId) {
+      await ctx.answerCallbackQuery({ text: 'Task expired — send /task again.' });
+      return;
+    }
+    const titleText = pending.text || '';
+    ccPendingTask.delete(chatIdStr);
+    try {
+      const { getActiveWorkspace } = await import('./workspace-service.js');
+      const active = getActiveWorkspace(chatIdStr);
+      const { getDb } = await import('./db.js');
+      const crypto = await import('crypto');
+      const id = crypto.randomBytes(4).toString('hex');
+      const shortTitle = titleText.split(/\r?\n/)[0].slice(0, 120) || 'Task';
+      const bizId = active.is_global ? null : active.id;
+      getDb().prepare(
+        `INSERT INTO mission_tasks (id, title, prompt, assigned_agent, status, created_by, priority, created_at, business_id)
+         VALUES (?, ?, ?, NULL, 'queued', 'telegram', ?, ?, ?)`,
+      ).run(id, shortTitle, titleText, priority, Math.floor(Date.now() / 1000), bizId);
+      await ctx.answerCallbackQuery({ text: 'Task saved to ' + active.name + ' backlog' });
+      // Replace the original prompt message with a confirmation (edit is cheap,
+      // keeps the chat tidy, preserves surrounding conversation context).
+      const confirm = `✅ Task added to ${active.icon_emoji} ${active.name} backlog\nPriority: ${label}\n${shortTitle}`;
+      await ctx.editMessageText(confirm).catch(async () => {
+        await ctx.reply(confirm);
+      });
+    } catch (err) {
+      logger.error({ err }, '/task: create failed');
+      await ctx.answerCallbackQuery({ text: 'Save failed. Try /task again.' });
+    }
   });
 
   // Mission Control V1: /intel <url|text> ingests into the active workspace's
@@ -1317,7 +1467,7 @@ export function createBot(): Bot {
   });
 
   // Text messages — and any slash commands not owned by this bot (skills, e.g. /todo /gmail)
-  const OWN_COMMANDS = new Set(['/start', '/help', '/newchat', '/respin', '/voice', '/model', '/memory', '/forget', '/pin', '/unpin', '/chatid', '/wa', '/slack', '/dashboard', '/stop', '/agents', '/delegate', '/lock', '/status']);
+  const OWN_COMMANDS = new Set(['/start', '/help', '/newchat', '/respin', '/voice', '/model', '/memory', '/forget', '/pin', '/unpin', '/chatid', '/wa', '/slack', '/dashboard', '/stop', '/agents', '/delegate', '/lock', '/status', '/b', '/intel', '/task']);
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text;
     const chatIdStr = ctx.chat!.id.toString();
@@ -1345,6 +1495,13 @@ export function createBot(): Bot {
       return;
     }
     touchActivity();
+
+    // /task pending state — consume this message as the task content if
+    // the user is mid-flow. Returns true when consumed so the normal
+    // Claude speech flow is skipped for this turn only.
+    if (await ccTryConsumePendingTask(chatIdStr, text, (msg, extra) => ctx.reply(msg, (extra as Parameters<typeof ctx.reply>[1])))) {
+      return;
+    }
 
     // ── WhatsApp state machine ──────────────────────────────────────
     const state = waState.get(chatIdStr);
@@ -1520,9 +1677,15 @@ export function createBot(): Bot {
       const fileId = ctx.message.voice.file_id;
       const localPath = await downloadTelegramFile(activeBotToken, fileId, UPLOADS_DIR);
       const transcribed = await transcribeAudio(localPath);
+      const chatIdStr = ctx.chat!.id.toString();
+      // /task pending state — if the user sent /task with no args and this
+      // is the follow-up voice note, capture the transcription as the task
+      // content instead of sending it to Claude.
+      if (await ccTryConsumePendingTask(chatIdStr, transcribed, (msg, extra) => ctx.reply(msg, (extra as Parameters<typeof ctx.reply>[1])))) {
+        return;
+      }
       // Only reply with voice if explicitly requested — otherwise execute and respond in text
       const wantsVoiceBack = /\b(respond (with|via|in) voice|send (me )?(a )?voice( note| back)?|voice reply|reply (with|via) voice)\b/i.test(transcribed);
-      const chatIdStr = ctx.chat!.id.toString();
       messageQueue.enqueue(chatIdStr, () => handleMessage(ctx, `[Voice transcribed]: ${transcribed}`, wantsVoiceBack));
     } catch (err) {
       logger.error({ err }, 'Voice transcription failed');

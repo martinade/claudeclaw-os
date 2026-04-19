@@ -244,6 +244,7 @@ const WARROOM_ENABLED = warroomEnabled;
   .cc-sidebar-row.active { color: var(--text-primary); background: rgba(var(--ws-accent-rgb), 0.1); border-left: 2px solid var(--ws-accent); font-weight: 600; }
   .cc-sidebar-row.command { padding: 9px 10px; font-weight: 500; color: var(--accent-gold); background: rgba(212,175,55,0.05); border-left: 2px solid rgba(212,175,55,0.3); }
   .cc-sidebar-row.command:hover { background: rgba(212,175,55,0.1); }
+  .cc-sidebar-row.active-page { color: var(--text-primary); background: rgba(var(--ws-accent-rgb), 0.1); border-left: 2px solid var(--ws-accent); font-weight: 600; }
   .cc-sidebar-icon { font-size: 15px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
   .cc-sidebar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .cc-sidebar-kbd { margin-left: auto; font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
@@ -261,14 +262,26 @@ const WARROOM_ENABLED = warroomEnabled;
   .cc-ws-form-btn.secondary { background: transparent; color: var(--text-secondary); }
   .cc-sidebar-toggle { display: none; }
 
-  @media (min-width: 900px) {
-    body.cc-has-sidebar { padding-left: 220px !important; }
+  /* Sidebar is ALWAYS visible (parity with OpenClaw). On narrow
+     viewports the content padding-left still applies so panels
+     scroll in the remaining width. */
+  body.cc-has-sidebar { padding-left: 220px !important; }
+  @media (max-width: 640px) {
+    .cc-sidebar { width: 180px; }
+    body.cc-has-sidebar { padding-left: 180px !important; }
+    .cc-sidebar-label { font-size: 12px; }
   }
-  @media (max-width: 899px) {
-    .cc-sidebar { transform: translateX(-100%); transition: transform 0.25s ease; }
-    .cc-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
-    .cc-sidebar-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 36; background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); width: 36px; height: 36px; border-radius: 8px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
-  }
+
+  /* Page-switching: every element tagged with [data-cc-page] is
+     shown only on its page. Untagged elements (modals, drawers,
+     chat FAB, bot-info header) are always visible. */
+  .cc-page-hidden { display: none !important; }
+
+  /* Page header shown above the current page's content */
+  .cc-page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .cc-page-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); }
+  .cc-page-subtitle { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .cc-ws-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(var(--ws-accent-rgb), 0.12); color: var(--ws-accent); font-size: 11px; font-weight: 600; font-family: 'Bricolage Grotesque', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; }
 
   /* ── Phase 3: Workspace home (priorities, quick links, core memory) ─ */
   .ws-home-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
@@ -433,8 +446,15 @@ const WARROOM_ENABLED = warroomEnabled;
 </div>
 <div id="bot-info" class="flex items-center gap-3 mb-4 text-xs text-gray-500" style="display:none"></div>
 
+<!-- Page header (populated by JS on page switch) -->
+<div class="cc-page-header" id="cc-page-header">
+  <div class="cc-page-title" id="cc-page-title">Dashboard</div>
+  <div class="cc-ws-pill" id="cc-ws-pill"><span id="cc-ws-pill-icon">🌐</span><span id="cc-ws-pill-name">Cross-Business</span></div>
+  <div class="cc-page-subtitle" id="cc-page-subtitle" style="margin-left:auto;"></div>
+</div>
+
 <!-- Summary Stats Bar -->
-<div id="summary-bar" class="summary-bar" style="display:none">
+<div id="summary-bar" class="summary-bar" data-cc-page="dashboard" style="display:none">
   <div class="summary-stat clickable-card" onclick="document.getElementById('hive-section').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">
     <span class="summary-stat-val" id="sum-messages">-</span>
     <span class="summary-stat-label">Messages</span>
@@ -453,16 +473,18 @@ const WARROOM_ENABLED = warroomEnabled;
   </div>
 </div>
 
-<!-- Phase 3: Workspace home (priorities + quick links) -->
-<div id="workspace-home" class="ws-home-grid">
-  <section id="priorities-panel" class="glass-card ws-panel">
-    <div class="ws-panel-header">
-      <div class="ws-panel-title">Top Priorities</div>
-      <button class="ws-panel-add" onclick="ccShowPriorityInput()">+ Add</button>
-    </div>
-    <div id="priorities-list"></div>
-    <input type="text" id="priority-input" class="priority-input" placeholder="What's important?" style="display:none" onkeydown="if(event.key==='Enter'){ccSubmitPriority();event.preventDefault();}if(event.key==='Escape'){ccCancelPriorityInput();}">
-  </section>
+<!-- Phase 3: Workspace home (priorities + quick links) — now split across
+     two pages. Priorities is its own page; Quick Links stays on Dashboard. -->
+<section id="priorities-panel" class="glass-card ws-panel" data-cc-page="priorities" style="margin-bottom:16px;">
+  <div class="ws-panel-header">
+    <div class="ws-panel-title">Top Priorities</div>
+    <button class="ws-panel-add" onclick="ccShowPriorityInput()">+ Add</button>
+  </div>
+  <div id="priorities-list"></div>
+  <input type="text" id="priority-input" class="priority-input" placeholder="What's important?" style="display:none" onkeydown="if(event.key==='Enter'){ccSubmitPriority();event.preventDefault();}if(event.key==='Escape'){ccCancelPriorityInput();}">
+</section>
+
+<div id="workspace-home" class="ws-home-grid" data-cc-page="dashboard" style="grid-template-columns:1fr;">
   <section id="quick-links-panel" class="glass-card ws-panel">
     <div class="ws-panel-header">
       <div class="ws-panel-title">Quick Links</div>
@@ -474,7 +496,7 @@ const WARROOM_ENABLED = warroomEnabled;
 </div>
 
 <!-- Agent Status Cards -->
-<div id="agents-section" class="mb-5" style="display:none">
+<div id="agents-section" class="mb-5" data-cc-page="dashboard" style="display:none">
   <div class="flex items-center justify-between mb-2">
     <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Agents</h2>
     <div class="flex items-center gap-2">
@@ -605,7 +627,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Hive Mind Feed -->
-<div id="hive-section" class="mb-5" style="display:none">
+<div id="hive-section" class="mb-5" data-cc-page="hive" style="display:none">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Hive Mind<button class="privacy-toggle" onclick="toggleSectionBlur('hive')" title="Toggle blur">&#128065;</button></h2>
   <div id="hive-container" class="card hive-scroll">
     <div class="text-gray-500 text-sm">Loading...</div>
@@ -613,7 +635,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Tasks Inbox -->
-<div id="tasks-inbox-section" class="mb-5" style="display:none">
+<div id="tasks-inbox-section" class="mb-5" data-cc-page="mission" style="display:none">
   <div class="flex items-center justify-between mb-2">
     <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Tasks</h2>
     <div class="flex gap-2">
@@ -625,7 +647,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Mission Control -->
-<div id="mission-section" class="mb-5" style="display:none">
+<div id="mission-section" class="mb-5" data-cc-page="mission" style="display:none">
   <div class="flex items-center justify-between mb-2">
     <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Mission Control</h2>
     <button onclick="openTaskHistory()" style="background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer">History &rarr;</button>
@@ -770,13 +792,13 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 <div>
 
 <!-- Scheduled Tasks -->
-<div id="tasks-section">
+<div id="tasks-section" data-cc-page="dashboard">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Scheduled Tasks<span class="info-tip"><span class="info-icon">\u24D8</span><span class="info-tooltip">Automated tasks scheduled by the bot (e.g. reminders, checks). Shows the schedule, status, and time until next run.</span></span><button class="privacy-toggle" onclick="toggleSectionBlur('tasks')" title="Toggle blur">&#128065;</button></h2>
   <div id="tasks-container"><div class="card text-gray-500 text-sm">Loading...</div></div>
 </div>
 
 <!-- Phase 4: Calendar -->
-<section id="calendar-panel" class="glass-card ws-panel mt-5">
+<section id="calendar-panel" class="glass-card ws-panel mt-5" data-cc-page="calendar">
   <div class="cal-header">
     <div class="ws-panel-title">Calendar</div>
     <div class="cal-nav">
@@ -793,7 +815,20 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </section>
 
 <!-- Phase 8: Documents -->
-<section id="documents-panel" class="glass-card ws-panel mt-5">
+<!-- Ideas panel (Second Brain) -->
+<section id="ideas-panel" class="glass-card ws-panel mt-5" data-cc-page="ideas">
+  <div class="ws-panel-header">
+    <div>
+      <div class="ws-panel-title">Ideas · Second Brain</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Raw capture. Develop the ones worth developing later.</div>
+    </div>
+    <button class="ws-panel-add" onclick="ccShowIdeaForm()">+ Add</button>
+  </div>
+  <div id="ideas-form" style="display:none;margin-bottom:12px;"></div>
+  <div id="ideas-list"></div>
+</section>
+
+<section id="documents-panel" class="glass-card ws-panel mt-5" data-cc-page="documents">
   <div class="ws-panel-header">
     <div>
       <div class="ws-panel-title">Documents</div>
@@ -825,7 +860,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Phase 7: Intel Inbox -->
-<section id="inbox-panel" class="glass-card ws-panel mt-5">
+<section id="inbox-panel" class="glass-card ws-panel mt-5" data-cc-page="inbox">
   <div class="ws-panel-header">
     <div>
       <div class="ws-panel-title">Intel Inbox</div>
@@ -845,7 +880,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </section>
 
 <!-- Phase 5: Daily Brief -->
-<section id="daily-brief-panel" class="glass-card ws-panel mt-5" style="min-height:120px;">
+<section id="daily-brief-panel" class="glass-card ws-panel mt-5" data-cc-page="daily-brief" style="min-height:120px;">
   <div class="ws-panel-header">
     <div>
       <div class="ws-panel-title">Daily Brief</div>
@@ -857,7 +892,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </section>
 
 <!-- Phase 3: Core Memory (Tier 1 — pinned facts) -->
-<section id="core-memory-panel" class="glass-card ws-panel mt-5">
+<section id="core-memory-panel" class="glass-card ws-panel mt-5" data-cc-page="memory">
   <div class="ws-panel-header">
     <div>
       <div class="ws-panel-title">Core Memory · Pinned Facts</div>
@@ -881,7 +916,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </section>
 
 <!-- Memory Landscape -->
-<div id="memory-section" class="mt-5">
+<div id="memory-section" class="mt-5" data-cc-page="memory">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Memory Landscape<span style="font-size:10px;color:var(--text-muted);margin-left:8px;font-weight:400;text-transform:none;letter-spacing:normal">Tier 2 semantic + Tier 3 consolidations</span></h2>
   <div class="grid grid-cols-3 gap-3 mb-3">
     <div class="card clickable-card text-center" onclick="openMemoryDrawer()" style="cursor:pointer">
@@ -936,7 +971,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 <div>
 
 <!-- System Health -->
-<div id="health-section" class="mt-5 lg:mt-0">
+<div id="health-section" class="mt-5 lg:mt-0" data-cc-page="dashboard">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">System Health</h2>
   <div class="card flex items-center gap-4">
     <div class="relative">
@@ -970,7 +1005,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Token / Cost -->
-<div id="token-section" class="mt-5 mb-8">
+<div id="token-section" class="mt-5 mb-8" data-cc-page="dashboard">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2" id="tokens-section">Token Usage<span class="info-tip"><span class="info-icon">\u24D8</span><span class="info-tooltip">Token consumption (text units processed by the AI). Today's totals and all-time cumulative. Included in your Max subscription.</span></span></h2>
   <div class="card">
     <div class="flex justify-between items-baseline">
@@ -1043,27 +1078,78 @@ let CC_ACTIVE_SLUG = (new URLSearchParams(location.search).get('b'))
   || localStorage.getItem('ccWorkspace')
   || 'cross-business';
 
+// Nav items — each maps to a page id. Clicking a nav item calls
+// ccShowPage(page) which flips the data-cc-page elements.
+// The "command" item is special — it opens the chat FAB overlay.
 const CC_NAV_GROUPS = [
   { label: 'CLAUDECLAW', gold: true, items: [
-    { id: 'command', icon: '🤖', label: 'Command Centre', onClick: "openChat && openChat()" },
+    { id: 'command', page: null, icon: '🤖', label: 'Command Centre', onClick: "typeof openChat === 'function' && openChat()" },
   ]},
   { label: 'WORKSPACE', items: [
-    { id: 'dashboard',  icon: '⚡', label: 'Dashboard',     onClick: "document.querySelector('#summary-bar, .max-w-lg')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'mission',    icon: '📋', label: 'Mission Board', onClick: "document.getElementById('mission-board')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'priorities', icon: '🎯', label: 'Priorities',    onClick: "document.getElementById('priorities-panel')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'ideas',      icon: '💡', label: 'Ideas',         onClick: "document.getElementById('ideas-panel')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'documents',  icon: '📄', label: 'Documents',     onClick: "document.getElementById('documents-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'dashboard',  page: 'dashboard',  icon: '⚡', label: 'Dashboard' },
+    { id: 'mission',    page: 'mission',    icon: '📋', label: 'Mission Board' },
+    { id: 'priorities', page: 'priorities', icon: '🎯', label: 'Priorities' },
+    { id: 'ideas',      page: 'ideas',      icon: '💡', label: 'Ideas' },
+    { id: 'documents',  page: 'documents',  icon: '📄', label: 'Documents' },
   ]},
   { label: 'OPERATIONS', items: [
-    { id: 'calendar',    icon: '📅', label: 'Calendar',    onClick: "document.getElementById('calendar-panel')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'daily-brief', icon: '🌅', label: 'Daily Brief', onClick: "document.getElementById('daily-brief-panel')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'calendar',    page: 'calendar',    icon: '📅', label: 'Calendar' },
+    { id: 'daily-brief', page: 'daily-brief', icon: '🌅', label: 'Daily Brief' },
   ]},
   { label: 'INTELLIGENCE', items: [
-    { id: 'inbox',  icon: '📡', label: 'Intel Inbox', onClick: "document.getElementById('inbox-panel')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'hive',   icon: '🔍', label: 'Hive Mind',   onClick: "document.getElementById('hive-section')?.scrollIntoView({behavior:'smooth'})" },
-    { id: 'memory', icon: '🧠', label: 'Memory',      onClick: "document.getElementById('memory-section')?.scrollIntoView({behavior:'smooth'})" },
+    { id: 'inbox',  page: 'inbox',  icon: '📡', label: 'Intel Inbox' },
+    { id: 'hive',   page: 'hive',   icon: '🔍', label: 'Hive Mind' },
+    { id: 'memory', page: 'memory', icon: '🧠', label: 'Memory' },
   ]},
 ];
+
+const CC_PAGE_META = {
+  'dashboard':   { title: 'Dashboard',     subtitle: 'Portfolio overview' },
+  'mission':     { title: 'Mission Board', subtitle: 'Tasks and assignments' },
+  'priorities':  { title: 'Priorities',    subtitle: 'What matters this week' },
+  'ideas':       { title: 'Ideas',         subtitle: 'Second brain' },
+  'documents':   { title: 'Documents',     subtitle: 'Templates and renders' },
+  'calendar':    { title: 'Calendar',      subtitle: 'Scheduled work' },
+  'daily-brief': { title: 'Daily Brief',   subtitle: 'Chief-of-staff summary' },
+  'inbox':       { title: 'Intel Inbox',   subtitle: 'Forwarded reads' },
+  'hive':        { title: 'Hive Mind',     subtitle: 'Cross-agent feed' },
+  'memory':      { title: 'Memory',        subtitle: 'Pinned · Semantic · Consolidations' },
+};
+
+let CC_ACTIVE_PAGE = 'dashboard';
+
+function ccShowPage(pageId) {
+  if (!CC_PAGE_META[pageId]) return;
+  CC_ACTIVE_PAGE = pageId;
+  document.querySelectorAll('[data-cc-page]').forEach(el => {
+    const pages = (el.getAttribute('data-cc-page') || '').split(/\\s+/).filter(Boolean);
+    el.classList.toggle('cc-page-hidden', !pages.includes(pageId));
+  });
+  // Update header
+  const meta = CC_PAGE_META[pageId];
+  const title = document.getElementById('cc-page-title');
+  const sub = document.getElementById('cc-page-subtitle');
+  if (title) title.textContent = meta.title;
+  if (sub) sub.textContent = meta.subtitle;
+  // Update active state on nav rows
+  document.querySelectorAll('.cc-sidebar-row.page').forEach(el => {
+    el.classList.toggle('active-page', el.dataset.page === pageId);
+  });
+  // Scroll to top of page area
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  // Reload data for the current page's widgets
+  if (typeof refreshWorkspacePanels === 'function') { try { refreshWorkspacePanels(); } catch {} }
+  try { localStorage.setItem('ccPage', pageId); } catch {}
+}
+
+function ccUpdateWorkspacePill() {
+  const biz = CC_WORKSPACES.get(CC_ACTIVE_SLUG);
+  if (!biz) return;
+  const icon = document.getElementById('cc-ws-pill-icon');
+  const name = document.getElementById('cc-ws-pill-name');
+  if (icon) icon.textContent = biz.icon_emoji;
+  if (name) name.textContent = biz.name;
+}
 
 function ccHexToRgb(hex) {
   const m = (hex || '').replace('#','').match(/^(..)(..)(..)$/);
@@ -1088,6 +1174,7 @@ function ccSetWorkspace(slug, pushHistory = true) {
   document.querySelectorAll('.cc-sidebar-row.ws').forEach(el => {
     el.classList.toggle('active', el.dataset.slug === slug);
   });
+  ccUpdateWorkspacePill();
   if (typeof refreshAll === 'function') { try { refreshAll(); } catch (e) { console.warn(e); } }
   if (typeof refreshWorkspacePanels === 'function') { try { refreshWorkspacePanels(); } catch (e) { console.warn(e); } }
 }
@@ -1119,6 +1206,14 @@ async function ccLoadWorkspaces() {
     ccRenderSidebar();
     const active = CC_WORKSPACES.get(CC_ACTIVE_SLUG) || CC_WORKSPACES.get('cross-business');
     if (active) { CC_ACTIVE_SLUG = active.slug; applyWorkspaceAccent(active.color_hex); }
+    ccUpdateWorkspacePill();
+    // Apply saved page (URL > localStorage > default 'dashboard')
+    const urlPage = new URLSearchParams(location.search).get('page');
+    const savedPage = (() => { try { return localStorage.getItem('ccPage'); } catch { return null; } })();
+    const initialPage = (urlPage && CC_PAGE_META[urlPage]) ? urlPage
+                       : (savedPage && CC_PAGE_META[savedPage]) ? savedPage
+                       : 'dashboard';
+    ccShowPage(initialPage);
   } catch (err) { console.warn('ccLoadWorkspaces failed', err); }
 }
 
@@ -1133,8 +1228,14 @@ function ccRenderSidebar() {
   }).join('');
   const navHtml = CC_NAV_GROUPS.map(g => {
     const rows = g.items.map(it => {
-      const cls = (it.id === 'command') ? 'cc-sidebar-row command' : 'cc-sidebar-row';
-      return '<a class="' + cls + '" onclick="' + it.onClick + '"><span class="cc-sidebar-icon">' + it.icon + '</span><span class="cc-sidebar-label">' + it.label + '</span></a>';
+      const cls = (it.id === 'command')
+        ? 'cc-sidebar-row command'
+        : 'cc-sidebar-row page' + (it.page === CC_ACTIVE_PAGE ? ' active-page' : '');
+      const onClick = it.page
+        ? "ccShowPage('" + it.page + "')"
+        : (it.onClick || '');
+      const pageAttr = it.page ? ' data-page="' + it.page + '"' : '';
+      return '<a class="' + cls + '"' + pageAttr + ' onclick="' + onClick + '"><span class="cc-sidebar-icon">' + it.icon + '</span><span class="cc-sidebar-label">' + it.label + '</span></a>';
     }).join('');
     return '<div><div class="cc-sidebar-group-label' + (g.gold ? ' gold' : '') + '">' + g.label + '</div><div class="cc-sidebar-rows">' + rows + '</div></div>';
   }).join('');
@@ -3760,6 +3861,53 @@ refreshWorkspacePanels = async function() {
   await ccLoadCalendar();
 };
 
+// ── Ideas (Second Brain) ───────────────────────────────────────────
+async function ccLoadIdeas() {
+  const list = document.getElementById('ideas-list');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/ideas');
+    const data = await r.json();
+    const ideas = (data.ideas || []);
+    if (ideas.length === 0) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No ideas yet. Click + Add.</div>';
+      return;
+    }
+    list.innerHTML = ideas.map(i => {
+      const dt = new Date(i.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return '<div style="padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;margin-bottom:8px;">' +
+        '<div style="font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.3;">' + ccEscapeHtml(i.title) + '</div>' +
+        (i.raw_text ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.45;word-break:break-word;">' + ccEscapeHtml(i.raw_text).slice(0, 400) + '</div>' : '') +
+        '<div style="font-size:10px;color:var(--text-muted);font-family:\\'JetBrains Mono\\',monospace;margin-top:6px;">' + dt + '</div>' +
+      '</div>';
+    }).join('');
+  } catch (err) { console.warn('ccLoadIdeas failed', err); }
+}
+
+function ccShowIdeaForm() {
+  const form = document.getElementById('ideas-form');
+  if (!form) return;
+  if (form.dataset.open === '1') { form.style.display = 'none'; form.dataset.open = '0'; return; }
+  form.dataset.open = '1';
+  form.style.display = 'block';
+  form.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:8px;">' +
+    '<input type="text" id="idea-title" placeholder="Short title" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;">' +
+    '<textarea id="idea-body" placeholder="Raw thought" rows="3" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>' +
+    '<div style="display:flex;gap:6px;justify-content:flex-end;"><button onclick="ccShowIdeaForm()" style="background:transparent;color:var(--text-secondary);border:none;padding:4px 10px;font-size:11px;cursor:pointer;">Cancel</button><button onclick="ccSubmitIdea()" style="background:var(--ws-accent);color:#000;border:none;padding:4px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;">Add</button></div>' +
+    '</div>';
+  document.getElementById('idea-title').focus();
+}
+
+async function ccSubmitIdea() {
+  const title = document.getElementById('idea-title').value.trim();
+  const body = document.getElementById('idea-body').value.trim();
+  if (!title) return;
+  await fetch('/api/ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, raw_text: body }) });
+  ccShowIdeaForm();
+  await ccLoadIdeas();
+}
+
 // ── Phase 8: Documents ─────────────────────────────────────────────
 let CC_DOC_MODE = 'create'; // 'create' | 'render'
 let CC_DOC_CURRENT_TEMPLATE = null;
@@ -3839,11 +3987,12 @@ async function ccDocSubmit() {
   }
 }
 
-// Chain documents into refresh cycle
+// Chain documents + ideas into refresh cycle
 const _origRefreshPanels_docs = refreshWorkspacePanels;
 refreshWorkspacePanels = async function() {
   await _origRefreshPanels_docs();
   await ccLoadDocuments();
+  await ccLoadIdeas();
 };
 
 // ── Phase 7: Intel Inbox ───────────────────────────────────────────

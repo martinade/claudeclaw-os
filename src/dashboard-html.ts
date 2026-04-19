@@ -469,6 +469,41 @@ const WARROOM_ENABLED = warroomEnabled;
   .brief-send-cta { padding: 9px 18px; background: var(--accent-gold); color: var(--bg-primary); border: none; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
   .brief-send-cta:disabled { opacity: 0.55; cursor: not-allowed; }
 
+  /* ── Phase 4d: Meetings page ─────────────────────────────────── */
+  .mtg-section-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin: 6px 0 10px; }
+  .mtg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .mtg-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-left: 3px solid var(--ws-accent); border-radius: 4px; padding: 12px 14px; cursor: pointer; transition: background 0.15s, border-color 0.15s; display: flex; flex-direction: column; gap: 6px; }
+  .mtg-card:hover { background: var(--bg-card-hover); }
+  .mtg-card.archived { opacity: 0.55; }
+  .mtg-card-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+  .mtg-card-meta { display: flex; gap: 10px; font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; flex-wrap: wrap; }
+  .mtg-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .mtg-badge { font-size: 10px; padding: 1px 7px; border-radius: 3px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+
+  .mtg-modal { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; max-width: 640px; width: 100%; max-height: 92vh; display: flex; flex-direction: column; animation: modal-enter 200ms ease-out; }
+  .mtg-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
+  .mtg-modal-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .mtg-modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .mtg-modal-body input, .mtg-modal-body textarea, .mtg-modal-body select { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 8px 12px; border-radius: 4px; font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; width: 100%; box-sizing: border-box; }
+  .mtg-modal-body input:focus, .mtg-modal-body textarea:focus, .mtg-modal-body select:focus { border-color: var(--ws-accent); outline: none; }
+  .mtg-modal-body textarea { min-height: 64px; resize: vertical; }
+  .mtg-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mtg-field-label { font-family: 'Bricolage Grotesque', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; display: block; }
+  .mtg-list { display: flex; flex-direction: column; gap: 6px; }
+  .mtg-list-row { display: flex; gap: 8px; align-items: center; background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px 8px; }
+  .mtg-list-row input[type="text"] { border: none; background: transparent; padding: 2px 4px; }
+  .mtg-list-row input[type="checkbox"] { width: 14px; height: 14px; flex-shrink: 0; }
+  .mtg-list-row .del { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .mtg-list-row .del:hover { color: var(--status-offline); }
+  .mtg-list-add { background: transparent; border: 1px dashed var(--border-subtle); color: var(--text-muted); border-radius: 4px; padding: 5px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .mtg-list-add:hover { border-style: solid; color: var(--ws-accent); border-color: var(--ws-accent); }
+  .mtg-push-label { font-size: 10px; color: var(--text-muted); display: flex; gap: 5px; align-items: center; white-space: nowrap; }
+  .mtg-modal-foot { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border-subtle); gap: 8px; }
+  .mtg-modal-foot button { padding: 7px 14px; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); }
+  .mtg-modal-foot .save { background: var(--accent-gold); color: var(--bg-primary); border-color: var(--accent-gold); }
+  .mtg-modal-foot .del { color: var(--status-offline); border-color: rgba(239,68,68,0.35); }
+  .mtg-modal-foot .voice { color: var(--accent-gold); border-color: rgba(212,175,55,0.4); }
+
   /* ── Documents (Phase 2, OC MC parity) ─────────────────────────── */
   .doc-list { display: flex; flex-direction: column; gap: 6px; }
   .doc-empty { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 48px; text-align: center; }
@@ -1193,6 +1228,92 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="inbox-list" class="inbox-grid"></div>
 </section>
 
+<!-- Phase 4d: Meetings — scheduled agenda-tracked meetings -->
+<section data-cc-page="meetings" class="mt-2">
+  <div class="mtg-section-title">Upcoming</div>
+  <div class="mtg-grid" id="mtg-upcoming"></div>
+  <div class="mtg-section-title">Past</div>
+  <div class="mtg-grid" id="mtg-past"></div>
+</section>
+
+<!-- Meeting edit modal -->
+<div class="cal-event-overlay" id="mtg-overlay" onclick="if(event.target===this)ccMeetingClose()">
+  <div class="mtg-modal">
+    <div class="mtg-modal-head">
+      <span class="mtg-modal-title" id="mtg-title-h">New Meeting</span>
+      <button onclick="ccMeetingClose()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&times;</button>
+    </div>
+    <div class="mtg-modal-body">
+      <div>
+        <span class="mtg-field-label">Title</span>
+        <input type="text" id="mtg-title" placeholder="Meeting title">
+      </div>
+      <div class="mtg-row2">
+        <div>
+          <span class="mtg-field-label">Start (local)</span>
+          <input type="datetime-local" id="mtg-start">
+        </div>
+        <div>
+          <span class="mtg-field-label">End (optional)</span>
+          <input type="datetime-local" id="mtg-end">
+        </div>
+      </div>
+      <div class="mtg-row2">
+        <div>
+          <span class="mtg-field-label">Type</span>
+          <select id="mtg-type">
+            <option value="standup">Standup</option>
+            <option value="1on1">1-on-1</option>
+            <option value="strategy">Strategy</option>
+            <option value="client">Client</option>
+            <option value="review">Review</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <span class="mtg-field-label">Repeat</span>
+          <select id="mtg-repeat">
+            <option value="">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi-weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <span class="mtg-field-label">Attendees (comma-separated)</span>
+        <input type="text" id="mtg-attendees" placeholder="Martin, Jamie, research (agent)">
+      </div>
+      <div>
+        <span class="mtg-field-label">Prep notes</span>
+        <textarea id="mtg-prep" placeholder="Context before the meeting"></textarea>
+      </div>
+      <div>
+        <span class="mtg-field-label">Agenda</span>
+        <div class="mtg-list" id="mtg-agenda-list"></div>
+        <button type="button" class="mtg-list-add" onclick="ccMeetingAddAgenda()">+ Add agenda item</button>
+      </div>
+      <div>
+        <span class="mtg-field-label">Action items</span>
+        <div class="mtg-list" id="mtg-actions-list"></div>
+        <button type="button" class="mtg-list-add" onclick="ccMeetingAddAction()">+ Add action item</button>
+      </div>
+      <div>
+        <span class="mtg-field-label">Meeting notes</span>
+        <textarea id="mtg-notes" placeholder="Recap written during/after"></textarea>
+      </div>
+    </div>
+    <div class="mtg-modal-foot">
+      <button class="del" id="mtg-delete" onclick="ccMeetingDelete()" style="display:none;">Delete</button>
+      <button class="voice" onclick="ccMeetingStartVoice()">🎙 Start Voice Meeting</button>
+      <div style="flex:1;"></div>
+      <button onclick="ccMeetingClose()">Cancel</button>
+      <button class="save" onclick="ccMeetingSave()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Phase 4c: Daily Brief — six-card grid matching OC MC -->
 <section data-cc-page="daily-brief" class="mt-2">
   <div class="brief-top">
@@ -1414,6 +1535,7 @@ const CC_NAV_GROUPS = [
   ]},
   { label: 'OPERATIONS', items: [
     { id: 'calendar',    page: 'calendar',    icon: '📅', label: 'Calendar' },
+    { id: 'meetings',    page: 'meetings',    icon: '📞', label: 'Meetings' },
     { id: 'daily-brief', page: 'daily-brief', icon: '🌅', label: 'Daily Brief' },
   ]},
   { label: 'INTELLIGENCE', items: [
@@ -1442,6 +1564,8 @@ const CC_PAGE_META = {
   'calendar':    { title: 'Calendar',      subtitleFn: () => 'Scheduled work' },
   'daily-brief': { title: 'Daily Brief',   subtitleFn: () => 'Chief-of-staff summary',
                    cta: { label: '📨 Send Now',    handler: 'ccRunDailyBrief()' } },
+  'meetings':    { title: 'Meetings',      subtitleFn: () => (window.CC_MEETINGS_COUNT != null ? (window.CC_MEETINGS_COUNT + ' scheduled') : 'Scheduled agenda + action tracking'),
+                   cta: { label: '+ New Meeting', handler: 'ccMeetingNew()' } },
   'inbox':       { title: 'Intel Pipeline',subtitleFn: () => (window.CC_INBOX_COUNT != null ? (window.CC_INBOX_COUNT + ' unread') : 'Forwarded reads') },
   'hive':        { title: 'Hive Mind',     subtitleFn: () => 'Cross-agent feed' },
   'memory':      { title: 'Memory',        subtitleFn: () => 'Pinned facts · Semantic · Consolidations' },
@@ -5033,14 +5157,204 @@ async function ccDocExport(kind) {
   }
 }
 
-// Chain documents + ideas + daily brief into refresh cycle
+// Chain documents + ideas + daily brief + meetings into refresh cycle
 const _origRefreshPanels_docs = refreshWorkspacePanels;
 refreshWorkspacePanels = async function() {
   await _origRefreshPanels_docs();
   await ccLoadDocuments();
   await ccLoadIdeas();
   await ccLoadDailyBrief();
+  await ccLoadMeetings();
 };
+
+// ── Phase 4d: Meetings ──────────────────────────────────────────────
+let CC_MTG_EDITING = null;
+let CC_MTG_AGENDA = [];
+let CC_MTG_ACTIONS = [];
+
+async function ccLoadMeetings() {
+  const upHost = document.getElementById('mtg-upcoming');
+  const pastHost = document.getElementById('mtg-past');
+  if (!upHost || !pastHost) return;
+  try {
+    const r = await fetch('/api/meetings');
+    const data = await r.json();
+    const meetings = (data.meetings || []);
+    window.CC_MEETINGS_COUNT = meetings.length;
+    if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
+    const now = Math.floor(Date.now() / 1000);
+    const upcoming = meetings.filter((m) => m.start_time >= now).sort((a, b) => a.start_time - b.start_time);
+    const past = meetings.filter((m) => m.start_time < now).sort((a, b) => b.start_time - a.start_time);
+    upHost.innerHTML = upcoming.length === 0
+      ? '<div class="brief-empty" style="grid-column:1/-1;">No upcoming meetings.</div>'
+      : upcoming.map(ccRenderMeetingCard).join('');
+    pastHost.innerHTML = past.length === 0
+      ? '<div class="brief-empty" style="grid-column:1/-1;">No past meetings.</div>'
+      : past.slice(0, 20).map(ccRenderMeetingCard).join('');
+  } catch (err) { console.warn('ccLoadMeetings failed', err); }
+}
+
+function ccRenderMeetingCard(m) {
+  const start = new Date(m.start_time * 1000);
+  const when = start.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const archived = m.archived ? ' archived' : '';
+  let attendees = [];
+  try { attendees = JSON.parse(m.attendees_json || '[]'); } catch {}
+  let actions = [];
+  try { actions = JSON.parse(m.actions_json || '[]'); } catch {}
+  const openActions = actions.filter((a) => !a.completed).length;
+  const badges = [
+    '<span class="mtg-badge">' + ccEscapeHtml(m.meeting_type) + '</span>',
+    attendees.length > 0 ? '<span class="mtg-badge">' + attendees.length + ' attendee' + (attendees.length === 1 ? '' : 's') + '</span>' : '',
+    openActions > 0 ? '<span class="mtg-badge" style="color:var(--accent-gold);border-color:rgba(212,175,55,0.4);">' + openActions + ' open action' + (openActions === 1 ? '' : 's') + '</span>' : '',
+  ].filter(Boolean).join('');
+  return '<div class="mtg-card' + archived + '" onclick="ccMeetingOpen(' + m.id + ')">' +
+    '<div class="mtg-card-title">' + ccEscapeHtml(m.title) + '</div>' +
+    '<div class="mtg-card-meta"><span>' + ccEscapeHtml(when) + '</span></div>' +
+    '<div class="mtg-card-badges">' + badges + '</div>' +
+  '</div>';
+}
+
+function ccMeetingNew() {
+  CC_MTG_EDITING = null;
+  CC_MTG_AGENDA = [];
+  CC_MTG_ACTIONS = [];
+  document.getElementById('mtg-title-h').textContent = 'New Meeting';
+  document.getElementById('mtg-delete').style.display = 'none';
+  document.getElementById('mtg-title').value = '';
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  document.getElementById('mtg-start').value = fmt(now);
+  const oneHour = new Date(now.getTime() + 3600 * 1000);
+  document.getElementById('mtg-end').value = fmt(oneHour);
+  document.getElementById('mtg-type').value = 'standup';
+  document.getElementById('mtg-repeat').value = '';
+  document.getElementById('mtg-attendees').value = '';
+  document.getElementById('mtg-prep').value = '';
+  document.getElementById('mtg-notes').value = '';
+  ccMeetingRenderLists();
+  document.getElementById('mtg-overlay').classList.add('open');
+  document.getElementById('mtg-title').focus();
+}
+
+async function ccMeetingOpen(id) {
+  try {
+    const r = await fetch('/api/meetings');
+    const data = await r.json();
+    const m = (data.meetings || []).find((x) => x.id === id);
+    if (!m) return;
+    CC_MTG_EDITING = m;
+    try { CC_MTG_AGENDA = JSON.parse(m.agenda_json || '[]'); } catch { CC_MTG_AGENDA = []; }
+    try { CC_MTG_ACTIONS = JSON.parse(m.actions_json || '[]'); } catch { CC_MTG_ACTIONS = []; }
+    let attendees = [];
+    try { attendees = JSON.parse(m.attendees_json || '[]'); } catch {}
+    document.getElementById('mtg-title-h').textContent = 'Edit Meeting';
+    document.getElementById('mtg-delete').style.display = '';
+    document.getElementById('mtg-title').value = m.title || '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (ts) => {
+      const d = new Date(ts * 1000);
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    };
+    document.getElementById('mtg-start').value = fmt(m.start_time);
+    document.getElementById('mtg-end').value = m.end_time ? fmt(m.end_time) : '';
+    document.getElementById('mtg-type').value = m.meeting_type || 'standup';
+    document.getElementById('mtg-repeat').value = m.repeat || '';
+    document.getElementById('mtg-attendees').value = attendees.join(', ');
+    document.getElementById('mtg-prep').value = m.prep_notes || '';
+    document.getElementById('mtg-notes').value = m.notes || '';
+    ccMeetingRenderLists();
+    document.getElementById('mtg-overlay').classList.add('open');
+  } catch (err) { console.warn('ccMeetingOpen failed', err); }
+}
+
+function ccMeetingClose() {
+  document.getElementById('mtg-overlay').classList.remove('open');
+  CC_MTG_EDITING = null;
+  CC_MTG_AGENDA = [];
+  CC_MTG_ACTIONS = [];
+}
+
+function ccMeetingAddAgenda() { CC_MTG_AGENDA.push({ text: '', completed: false }); ccMeetingRenderLists(); }
+function ccMeetingAddAction() { CC_MTG_ACTIONS.push({ text: '', completed: false, push_to_tasks: false }); ccMeetingRenderLists(); }
+
+function ccMeetingRenderLists() {
+  const agHost = document.getElementById('mtg-agenda-list');
+  const acHost = document.getElementById('mtg-actions-list');
+  if (agHost) {
+    agHost.innerHTML = CC_MTG_AGENDA.map((a, i) =>
+      '<div class="mtg-list-row">' +
+        '<input type="checkbox" ' + (a.completed ? 'checked' : '') + ' onchange="CC_MTG_AGENDA[' + i + '].completed=this.checked">' +
+        '<input type="text" value="' + ccEscapeHtml(a.text) + '" placeholder="Agenda item" oninput="CC_MTG_AGENDA[' + i + '].text=this.value" style="flex:1;">' +
+        '<button type="button" class="del" onclick="CC_MTG_AGENDA.splice(' + i + ',1);ccMeetingRenderLists()">×</button>' +
+      '</div>'
+    ).join('');
+  }
+  if (acHost) {
+    acHost.innerHTML = CC_MTG_ACTIONS.map((a, i) => {
+      const pushed = a.pushed_task_id ? ('<span class="mtg-push-label" style="color:var(--status-online)">✓ pushed</span>') : '';
+      const pushCheckbox = a.pushed_task_id
+        ? ''
+        : ('<label class="mtg-push-label"><input type="checkbox" ' + (a.push_to_tasks ? 'checked' : '') + ' onchange="CC_MTG_ACTIONS[' + i + '].push_to_tasks=this.checked"> push to Tasks</label>');
+      return '<div class="mtg-list-row">' +
+        '<input type="checkbox" ' + (a.completed ? 'checked' : '') + ' onchange="CC_MTG_ACTIONS[' + i + '].completed=this.checked">' +
+        '<input type="text" value="' + ccEscapeHtml(a.text) + '" placeholder="Action item" oninput="CC_MTG_ACTIONS[' + i + '].text=this.value" style="flex:1;">' +
+        pushCheckbox + pushed +
+        '<button type="button" class="del" onclick="CC_MTG_ACTIONS.splice(' + i + ',1);ccMeetingRenderLists()">×</button>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+async function ccMeetingSave() {
+  const title = document.getElementById('mtg-title').value.trim();
+  if (!title) { alert('Title required'); return; }
+  const startRaw = document.getElementById('mtg-start').value;
+  if (!startRaw) { alert('Start time required'); return; }
+  const endRaw = document.getElementById('mtg-end').value;
+  const attendeesRaw = document.getElementById('mtg-attendees').value;
+  const attendees = attendeesRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  const payload = {
+    title,
+    start_time: Math.floor(new Date(startRaw).getTime() / 1000),
+    end_time: endRaw ? Math.floor(new Date(endRaw).getTime() / 1000) : null,
+    meeting_type: document.getElementById('mtg-type').value,
+    repeat: document.getElementById('mtg-repeat').value || null,
+    attendees,
+    prep_notes: document.getElementById('mtg-prep').value,
+    notes: document.getElementById('mtg-notes').value,
+    agenda: CC_MTG_AGENDA.filter((a) => a.text && a.text.trim()),
+    actions: CC_MTG_ACTIONS.filter((a) => a.text && a.text.trim()),
+  };
+  let r;
+  if (CC_MTG_EDITING && CC_MTG_EDITING.id) {
+    r = await fetch('/api/meetings/' + CC_MTG_EDITING.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } else {
+    r = await fetch('/api/meetings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  }
+  if (!r.ok) { alert('Save failed'); return; }
+  ccMeetingClose();
+  await ccLoadMeetings();
+}
+
+async function ccMeetingDelete() {
+  if (!CC_MTG_EDITING || !CC_MTG_EDITING.id) return;
+  if (!confirm('Delete this meeting?')) return;
+  const r = await fetch('/api/meetings/' + CC_MTG_EDITING.id, { method: 'DELETE' });
+  if (!r.ok) { alert('Delete failed'); return; }
+  ccMeetingClose();
+  await ccLoadMeetings();
+}
+
+function ccMeetingStartVoice() {
+  // Open War Room in a new window with the meeting title as context. War Room is
+  // mounted at /warroom (same port) per dashboard.ts routing.
+  const title = document.getElementById('mtg-title').value.trim() || 'Meeting';
+  const url = '/warroom?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID) + '&topic=' + encodeURIComponent(title);
+  window.open(url, '_blank');
+}
 
 // ── Phase 4b: Intel Pipeline ────────────────────────────────────────
 // The filter bar holds the canonical state. ccInboxRefilter reads all

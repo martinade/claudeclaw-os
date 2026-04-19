@@ -1902,6 +1902,88 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ deleted: true });
   });
 
+  // Meetings — scheduled agenda-tracked meetings (distinct from War Room
+  // voice sessions, which live in warroom_meetings).
+  app.get('/api/meetings', async (c) => {
+    const { listMeetings } = await import('./workspace-db.js');
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const includeArchived = c.req.query('archived') === '1';
+    return c.json({ meetings: listMeetings(bizId, { includeArchived }) });
+  });
+
+  app.post('/api/meetings', async (c) => {
+    const body = await c.req.json<{
+      title: string;
+      start_time: number;
+      end_time?: number | null;
+      meeting_type?: string;
+      attendees?: string[];
+      prep_notes?: string;
+      notes?: string;
+      agenda?: Array<{ text: string; completed: boolean }>;
+      actions?: Array<{ text: string; completed: boolean; push_to_tasks: boolean }>;
+      repeat?: string | null;
+    }>();
+    if (!body?.title?.trim()) return c.json({ error: 'title required' }, 400);
+    if (!Number.isFinite(body.start_time)) return c.json({ error: 'start_time (unix seconds) required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const { createMeeting } = await import('./workspace-db.js');
+    const meeting = createMeeting({
+      business_id: bizId,
+      title: body.title.trim().slice(0, 200),
+      start_time: body.start_time,
+      end_time: body.end_time ?? null,
+      meeting_type: body.meeting_type ?? 'standup',
+      attendees: body.attendees ?? [],
+      prep_notes: body.prep_notes ?? '',
+      notes: body.notes ?? '',
+      agenda: body.agenda ?? [],
+      actions: body.actions ?? [],
+      repeat: body.repeat ?? null,
+    });
+    return c.json({ meeting }, 201);
+  });
+
+  app.patch('/api/meetings/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const body = await c.req.json<Record<string, unknown>>();
+    const { updateMeeting } = await import('./workspace-db.js');
+    const meeting = updateMeeting(id, body as Parameters<typeof updateMeeting>[1]);
+    if (!meeting) return c.json({ error: 'not found' }, 404);
+    // "Push to Tasks" — if any action item has push_to_tasks=true and isn't already pushed,
+    // create a mission_task. We record the push by noting the mission_task id inline.
+    try {
+      const actions = JSON.parse(meeting.actions_json || '[]') as Array<{ text: string; completed: boolean; push_to_tasks: boolean; pushed_task_id?: string }>;
+      let dirty = false;
+      for (const a of actions) {
+        if (a.push_to_tasks && !a.pushed_task_id && a.text && a.text.trim()) {
+          const taskId = crypto.randomBytes(4).toString('hex');
+          const title = ('Meeting: ' + meeting.title + ' — ' + a.text).slice(0, 200);
+          createMissionTask(taskId, title, a.text.trim(), null, 'meetings', 0);
+          a.pushed_task_id = taskId;
+          dirty = true;
+        }
+      }
+      if (dirty) {
+        const { updateMeeting: u2 } = await import('./workspace-db.js');
+        const saved = u2(id, { actions });
+        if (saved) return c.json({ meeting: saved });
+      }
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, id }, '/api/meetings push-to-tasks failed (non-fatal)');
+    }
+    return c.json({ meeting });
+  });
+
+  app.delete('/api/meetings/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const { deleteMeeting } = await import('./workspace-db.js');
+    deleteMeeting(id);
+    return c.json({ deleted: true });
+  });
+
   // Calendar — expands cron expressions for a given month, returns
   // { [YYYY-MM-DD]: [{id, prompt, schedule, hour, minute}] }
   app.get('/api/calendar', async (c) => {

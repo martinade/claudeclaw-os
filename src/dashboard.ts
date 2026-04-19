@@ -1746,6 +1746,66 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     });
   });
 
+  // Calendar events — full CRUD for user-created events (separate from
+  // cron-expanded scheduled_tasks which are shown read-only on the grid).
+  app.get('/api/calendar/events', async (c) => {
+    const { listCalendarEvents } = await import('./workspace-db.js');
+    const slug = getBizSlug(c);
+    const bizId = businessIdForSlug(slug);
+    const fromQ = c.req.query('from');
+    const toQ = c.req.query('to');
+    const now = Date.now() / 1000;
+    const fromTs = fromQ ? parseInt(fromQ, 10) : now - 86400 * 30;
+    const toTs = toQ ? parseInt(toQ, 10) : now + 86400 * 90;
+    const events = slug === 'cross-business'
+      ? listCalendarEvents(null, { fromTs, toTs })
+      : listCalendarEvents(bizId, { fromTs, toTs });
+    return c.json({ events });
+  });
+
+  app.post('/api/calendar/events', async (c) => {
+    const body = await c.req.json<{
+      title: string;
+      description?: string;
+      event_type?: string;
+      start_time: number;
+      end_time?: number | null;
+      repeat?: string | null;
+    }>();
+    if (!body?.title?.trim()) return c.json({ error: 'title required' }, 400);
+    if (!Number.isFinite(body.start_time)) return c.json({ error: 'start_time (unix seconds) required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const { createCalendarEvent } = await import('./workspace-db.js');
+    const event = createCalendarEvent({
+      business_id: bizId,
+      title: body.title.trim().slice(0, 200),
+      description: body.description ?? '',
+      event_type: (body.event_type as Parameters<typeof createCalendarEvent>[0]['event_type']) ?? 'appointment',
+      start_time: body.start_time,
+      end_time: body.end_time ?? null,
+      repeat: body.repeat ?? null,
+    });
+    return c.json({ event }, 201);
+  });
+
+  app.patch('/api/calendar/events/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const body = await c.req.json<Record<string, unknown>>();
+    const { updateCalendarEvent } = await import('./workspace-db.js');
+    const event = updateCalendarEvent(id, body as Parameters<typeof updateCalendarEvent>[1]);
+    if (!event) return c.json({ error: 'not found' }, 404);
+    return c.json({ event });
+  });
+
+  app.delete('/api/calendar/events/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const { deleteCalendarEvent } = await import('./workspace-db.js');
+    deleteCalendarEvent(id);
+    return c.json({ deleted: true });
+  });
+
   // Calendar — expands cron expressions for a given month, returns
   // { [YYYY-MM-DD]: [{id, prompt, schedule, hour, minute}] }
   app.get('/api/calendar', async (c) => {
@@ -1767,7 +1827,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     } else {
       tasks = db.prepare("SELECT id, prompt, schedule, status, business_id FROM scheduled_tasks WHERE status != 'deleted' AND (business_id = ? OR business_id IS NULL)").all(bizId) as typeof tasks;
     }
-    const byDate: Record<string, Array<{ id: string; prompt: string; schedule: string; time: string }>> = {};
+    const byDate: Record<string, Array<{ id: string; prompt: string; schedule: string; time: string; source: 'cron' | 'event'; event_type?: string }>> = {};
     for (const t of tasks) {
       try {
         const interval = CronExpressionParser.parse(t.schedule, { currentDate: startOfMonth });
@@ -1783,11 +1843,33 @@ export function startDashboard(botApi?: Api<RawApi>): void {
             prompt: t.prompt.slice(0, 120),
             schedule: t.schedule,
             time: `${hh}:${mm}`,
+            source: 'cron',
           });
         }
       } catch (err) {
         logger.warn({ err, cron: t.schedule, id: t.id }, 'calendar: cron parse failed');
       }
+    }
+    // Merge user-created events from calendar_events within this month range.
+    const { listCalendarEvents } = await import('./workspace-db.js');
+    const fromTs = Math.floor(startOfMonth.getTime() / 1000);
+    const toTs = Math.floor(endOfMonth.getTime() / 1000);
+    const events = slug === 'cross-business'
+      ? listCalendarEvents(null, { fromTs, toTs })
+      : listCalendarEvents(bizId, { fromTs, toTs });
+    for (const ev of events) {
+      const d = new Date(ev.start_time * 1000);
+      const key = d.toISOString().slice(0, 10);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      (byDate[key] ||= []).push({
+        id: 'event_' + ev.id,
+        prompt: ev.title.slice(0, 120),
+        schedule: ev.event_type,
+        time: `${hh}:${mm}`,
+        source: 'event',
+        event_type: ev.event_type,
+      });
     }
     return c.json({ month: monthStr, tasksByDate: byDate });
   });

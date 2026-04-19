@@ -584,3 +584,226 @@ export function countDocuments(businessId: string | null, db?: Database.Database
   const row = d.prepare('SELECT COUNT(*) AS n FROM documents WHERE business_id IS ?').get(businessId) as { n: number };
   return row.n;
 }
+
+// ── Calendar events (Phase 4a) ──────────────────────────────────────
+
+export type CalendarEventType =
+  | 'appointment'
+  | 'deadline'
+  | 'task'
+  | 'meeting'
+  | 'recurring';
+
+export interface CalendarEventRow {
+  id: number;
+  business_id: string | null;
+  title: string;
+  description: string;
+  event_type: string;
+  start_time: number;
+  end_time: number | null;
+  repeat: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CalendarEventInput {
+  business_id: string | null;
+  title: string;
+  description?: string;
+  event_type?: CalendarEventType;
+  start_time: number;
+  end_time?: number | null;
+  repeat?: string | null;
+}
+
+export function listCalendarEvents(
+  businessId: string | null,
+  range: { fromTs: number; toTs: number },
+  opts: { includeGlobal?: boolean } = {},
+  db?: Database.Database,
+): CalendarEventRow[] {
+  const d = resolveDb(db);
+  const includeGlobal = opts.includeGlobal ?? true;
+  const sql = businessId === null || !includeGlobal
+    ? 'SELECT * FROM calendar_events WHERE business_id IS ? AND start_time >= ? AND start_time < ? ORDER BY start_time ASC'
+    : 'SELECT * FROM calendar_events WHERE (business_id = ? OR business_id IS NULL) AND start_time >= ? AND start_time < ? ORDER BY start_time ASC';
+  return d.prepare(sql).all(businessId, range.fromTs, range.toTs) as CalendarEventRow[];
+}
+
+export function getCalendarEvent(id: number, db?: Database.Database): CalendarEventRow | null {
+  const d = resolveDb(db);
+  return (d.prepare('SELECT * FROM calendar_events WHERE id = ?').get(id) as CalendarEventRow | undefined) ?? null;
+}
+
+export function createCalendarEvent(input: CalendarEventInput, db?: Database.Database): CalendarEventRow {
+  const d = resolveDb(db);
+  const now = Math.floor(Date.now() / 1000);
+  const res = d.prepare(
+    `INSERT INTO calendar_events (business_id, title, description, event_type, start_time, end_time, repeat, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    input.business_id,
+    input.title,
+    input.description ?? '',
+    input.event_type ?? 'appointment',
+    input.start_time,
+    input.end_time ?? null,
+    input.repeat ?? null,
+    now,
+    now,
+  );
+  return getCalendarEvent(Number(res.lastInsertRowid), d)!;
+}
+
+export function updateCalendarEvent(
+  id: number,
+  patch: Partial<Omit<CalendarEventRow, 'id' | 'created_at' | 'updated_at'>>,
+  db?: Database.Database,
+): CalendarEventRow | null {
+  const d = resolveDb(db);
+  const cols: string[] = [];
+  const values: unknown[] = [];
+  const editable = ['title', 'description', 'event_type', 'start_time', 'end_time', 'repeat', 'business_id'] as const;
+  for (const k of editable) {
+    if (patch[k] !== undefined) { cols.push(`${k} = ?`); values.push(patch[k]); }
+  }
+  if (cols.length === 0) return getCalendarEvent(id, d);
+  const now = Math.floor(Date.now() / 1000);
+  cols.push('updated_at = ?');
+  values.push(now);
+  d.prepare(`UPDATE calendar_events SET ${cols.join(', ')} WHERE id = ?`).run(...values, id);
+  return getCalendarEvent(id, d);
+}
+
+export function deleteCalendarEvent(id: number, db?: Database.Database): void {
+  resolveDb(db).prepare('DELETE FROM calendar_events WHERE id = ?').run(id);
+}
+
+// ── Scheduled meetings (Phase 4d) ───────────────────────────────────
+
+export interface ScheduledMeetingRow {
+  id: number;
+  business_id: string | null;
+  title: string;
+  start_time: number;
+  end_time: number | null;
+  meeting_type: string;
+  attendees_json: string;
+  prep_notes: string;
+  notes: string;
+  agenda_json: string;
+  actions_json: string;
+  repeat: string | null;
+  archived: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface MeetingInput {
+  business_id: string | null;
+  title: string;
+  start_time: number;
+  end_time?: number | null;
+  meeting_type?: string;
+  attendees?: string[];
+  prep_notes?: string;
+  notes?: string;
+  agenda?: Array<{ text: string; completed: boolean }>;
+  actions?: Array<{ text: string; completed: boolean; push_to_tasks: boolean }>;
+  repeat?: string | null;
+}
+
+export function listMeetings(
+  businessId: string | null,
+  opts: { includeArchived?: boolean } = {},
+  db?: Database.Database,
+): ScheduledMeetingRow[] {
+  const d = resolveDb(db);
+  const where = opts.includeArchived
+    ? 'business_id IS ?'
+    : 'business_id IS ? AND archived = 0';
+  return d.prepare(
+    `SELECT * FROM scheduled_meetings WHERE ${where} ORDER BY start_time ASC`,
+  ).all(businessId) as ScheduledMeetingRow[];
+}
+
+export function getMeeting(id: number, db?: Database.Database): ScheduledMeetingRow | null {
+  const d = resolveDb(db);
+  return (d.prepare('SELECT * FROM scheduled_meetings WHERE id = ?').get(id) as ScheduledMeetingRow | undefined) ?? null;
+}
+
+export function createMeeting(input: MeetingInput, db?: Database.Database): ScheduledMeetingRow {
+  const d = resolveDb(db);
+  const now = Math.floor(Date.now() / 1000);
+  const res = d.prepare(
+    `INSERT INTO scheduled_meetings
+     (business_id, title, start_time, end_time, meeting_type, attendees_json, prep_notes, notes, agenda_json, actions_json, repeat, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    input.business_id,
+    input.title,
+    input.start_time,
+    input.end_time ?? null,
+    input.meeting_type ?? 'standup',
+    JSON.stringify(input.attendees ?? []),
+    input.prep_notes ?? '',
+    input.notes ?? '',
+    JSON.stringify(input.agenda ?? []),
+    JSON.stringify(input.actions ?? []),
+    input.repeat ?? null,
+    now,
+    now,
+  );
+  return getMeeting(Number(res.lastInsertRowid), d)!;
+}
+
+export function updateMeeting(
+  id: number,
+  patch: {
+    title?: string;
+    start_time?: number;
+    end_time?: number | null;
+    meeting_type?: string;
+    attendees?: string[];
+    prep_notes?: string;
+    notes?: string;
+    agenda?: Array<{ text: string; completed: boolean }>;
+    actions?: Array<{ text: string; completed: boolean; push_to_tasks: boolean }>;
+    repeat?: string | null;
+    archived?: number;
+    business_id?: string | null;
+  },
+  db?: Database.Database,
+): ScheduledMeetingRow | null {
+  const d = resolveDb(db);
+  const cols: string[] = [];
+  const values: unknown[] = [];
+  const xform: Record<string, (v: unknown) => unknown> = {
+    attendees: (v) => JSON.stringify(v ?? []),
+    agenda: (v) => JSON.stringify(v ?? []),
+    actions: (v) => JSON.stringify(v ?? []),
+  };
+  const colMap: Record<string, string> = {
+    attendees: 'attendees_json',
+    agenda: 'agenda_json',
+    actions: 'actions_json',
+  };
+  for (const key of Object.keys(patch) as Array<keyof typeof patch>) {
+    if (patch[key] === undefined) continue;
+    const col = colMap[key as string] ?? (key as string);
+    const x = xform[key as string];
+    cols.push(`${col} = ?`);
+    values.push(x ? x(patch[key]) : patch[key]);
+  }
+  if (cols.length === 0) return getMeeting(id, d);
+  const now = Math.floor(Date.now() / 1000);
+  cols.push('updated_at = ?');
+  values.push(now);
+  d.prepare(`UPDATE scheduled_meetings SET ${cols.join(', ')} WHERE id = ?`).run(...values, id);
+  return getMeeting(id, d);
+}
+
+export function deleteMeeting(id: number, db?: Database.Database): void {
+  resolveDb(db).prepare('DELETE FROM scheduled_meetings WHERE id = ?').run(id);
+}

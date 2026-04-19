@@ -461,6 +461,40 @@ function createSchema(database: Database.Database): void {
       content_md   TEXT NOT NULL,
       created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
+
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id  TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      title        TEXT NOT NULL,
+      description  TEXT NOT NULL DEFAULT '',
+      event_type   TEXT NOT NULL DEFAULT 'appointment',
+      start_time   INTEGER NOT NULL,
+      end_time     INTEGER,
+      repeat       TEXT,
+      created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      updated_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_calendar_events_biz_time ON calendar_events(business_id, start_time);
+    CREATE INDEX IF NOT EXISTS idx_calendar_events_time ON calendar_events(start_time);
+
+    CREATE TABLE IF NOT EXISTS scheduled_meetings (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id    TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      title          TEXT NOT NULL,
+      start_time     INTEGER NOT NULL,
+      end_time       INTEGER,
+      meeting_type   TEXT NOT NULL DEFAULT 'standup',
+      attendees_json TEXT NOT NULL DEFAULT '[]',
+      prep_notes     TEXT NOT NULL DEFAULT '',
+      notes          TEXT NOT NULL DEFAULT '',
+      agenda_json    TEXT NOT NULL DEFAULT '[]',
+      actions_json   TEXT NOT NULL DEFAULT '[]',
+      repeat         TEXT,
+      archived       INTEGER NOT NULL DEFAULT 0,
+      created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduled_meetings_biz ON scheduled_meetings(business_id, start_time);
   `);
 }
 
@@ -725,6 +759,21 @@ function runMigrations(database: Database.Database): void {
   if (meetCols.length > 0 && !meetCols.some((c) => c.name === 'provider')) {
     database.exec(`ALTER TABLE meet_sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'pika'`);
     logger.info('Migration: added provider column to meet_sessions');
+  }
+
+  // Mission Control V1 Phase 4b: extend inbox_items with importance + category.
+  // Nullable so existing rows keep working; ingest pipeline populates them going forward.
+  const inboxCols = database.prepare(`PRAGMA table_info(inbox_items)`).all() as Array<{ name: string }>;
+  if (inboxCols.length > 0) {
+    if (!inboxCols.some((c) => c.name === 'importance')) {
+      database.exec(`ALTER TABLE inbox_items ADD COLUMN importance TEXT`);
+    }
+    if (!inboxCols.some((c) => c.name === 'category')) {
+      database.exec(`ALTER TABLE inbox_items ADD COLUMN category TEXT`);
+    }
+    if (!inboxCols.some((c) => c.name === 'title')) {
+      database.exec(`ALTER TABLE inbox_items ADD COLUMN title TEXT`);
+    }
   }
 
   // Mission Control V1 Phase 2: extend documents table to match OC MC shape.

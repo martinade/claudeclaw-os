@@ -364,6 +364,44 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-pill { background: rgba(var(--ws-accent-rgb), 0.12); border-left: 2px solid var(--ws-accent); color: var(--text-primary); font-size: 10px; padding: 2px 4px; border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; cursor: help; }
   .cal-pill-time { font-family: 'JetBrains Mono', monospace; color: var(--ws-accent); font-weight: 600; margin-right: 3px; }
   .cal-more { font-size: 10px; color: var(--text-muted); padding: 0 4px; }
+  .cal-pill.event { background: rgba(99,102,241,0.14); border-left-color: #6366f1; }
+  .cal-pill.event .cal-pill-time { color: #a5b4fc; }
+  .cal-cell.has-events { background: rgba(255,255,255,0.03); cursor: pointer; }
+  .cal-cell.has-events:hover { border-color: rgba(var(--ws-accent-rgb), 0.4); }
+  /* Week view */
+  .cal-week-grid { display: grid; grid-template-columns: 60px repeat(7, 1fr); gap: 4px; }
+  .cal-week-dayhead { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding: 6px 0; }
+  .cal-week-dayhead.today-col { color: var(--ws-accent); }
+  .cal-week-hour-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); padding: 6px 4px; text-align: right; border-right: 1px solid var(--border-subtle); }
+  .cal-week-cell { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 4px; min-height: 42px; padding: 2px 3px; display: flex; flex-direction: column; gap: 2px; }
+  .cal-week-cell.today-col { background: rgba(var(--ws-accent-rgb), 0.03); }
+  /* Day detail side panel */
+  .cal-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 1100px) { .cal-layout.with-panel { grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr); } }
+  .cal-day-panel { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; height: fit-content; max-height: 640px; overflow-y: auto; }
+  .cal-day-panel h3 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 700; margin: 0; color: var(--text-primary); }
+  .cal-day-panel .date-sub { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .cal-day-item { padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; transition: border-color 0.15s; }
+  .cal-day-item:hover { border-color: var(--ws-accent); }
+  .cal-day-item-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .cal-day-item-meta { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .cal-day-item.cron { opacity: 0.75; }
+  .cal-day-add-btn { background: transparent; border: 1px dashed var(--border-subtle); color: var(--text-muted); border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .cal-day-add-btn:hover { border-style: solid; color: var(--ws-accent); border-color: var(--ws-accent); }
+  /* Event modal */
+  .cal-event-overlay { position: fixed; inset: 0; background: var(--bg-overlay); z-index: 80; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .cal-event-overlay.open { display: flex; }
+  .cal-event-modal { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; max-width: 520px; width: 100%; display: flex; flex-direction: column; animation: modal-enter 200ms ease-out; }
+  .cal-event-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .cal-event-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .cal-event-body input, .cal-event-body textarea, .cal-event-body select { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 8px 12px; border-radius: 4px; font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; width: 100%; box-sizing: border-box; }
+  .cal-event-body input:focus, .cal-event-body textarea:focus, .cal-event-body select:focus { border-color: var(--ws-accent); outline: none; }
+  .cal-event-body textarea { min-height: 72px; resize: vertical; }
+  .cal-event-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cal-event-foot { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border-subtle); gap: 8px; }
+  .cal-event-foot button { padding: 7px 14px; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); }
+  .cal-event-foot .save { background: var(--accent-gold); color: var(--bg-primary); border-color: var(--accent-gold); }
+  .cal-event-foot .del { color: var(--status-offline); border-color: rgba(239,68,68,0.35); }
 
   /* ── Phase 7: Intel Inbox ──────────────────────────────────────── */
   .inbox-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
@@ -932,22 +970,82 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="tasks-container"><div class="card text-gray-500 text-sm">Loading...</div></div>
 </div>
 
-<!-- Phase 4: Calendar -->
-<section id="calendar-panel" class="glass-card ws-panel mt-5" data-cc-page="calendar">
-  <div class="cal-header">
-    <div class="ws-panel-title">Calendar</div>
-    <div class="cal-nav">
-      <button onclick="ccCalendarPrev()" aria-label="Previous month">‹</button>
-      <div class="cal-nav-label" id="cal-label">—</div>
-      <button onclick="ccCalendarNext()" aria-label="Next month">›</button>
-      <button onclick="ccCalendarToday()">Today</button>
+<!-- Phase 4a: Calendar — month + week views, day detail panel, event CRUD -->
+<section data-cc-page="calendar" class="mt-2">
+  <div class="cal-layout" id="cal-layout">
+    <div class="glass-card ws-panel" id="cal-grid-card">
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button onclick="ccCalendarPrev()" aria-label="Previous">‹</button>
+          <div class="cal-nav-label" id="cal-label">—</div>
+          <button onclick="ccCalendarNext()" aria-label="Next">›</button>
+          <button onclick="ccCalendarToday()">Today</button>
+        </div>
+        <div class="cal-nav">
+          <button onclick="ccCalendarSetView('month')" id="cal-view-month">Month</button>
+          <button onclick="ccCalendarSetView('week')" id="cal-view-week">Week</button>
+        </div>
+      </div>
+      <div id="cal-weekdays-row" class="cal-weekdays">
+        <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+      </div>
+      <div id="cal-grid"></div>
+    </div>
+    <div class="cal-day-panel" id="cal-day-panel" style="display:none;"></div>
+  </div>
+</section>
+
+<!-- Calendar event modal -->
+<div class="cal-event-overlay" id="cal-event-overlay" onclick="if(event.target===this)ccCalCloseModal()">
+  <div class="cal-event-modal">
+    <div class="cal-event-head">
+      <span id="cal-event-title-h">New Event</span>
+      <button onclick="ccCalCloseModal()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&times;</button>
+    </div>
+    <div class="cal-event-body">
+      <input type="text" id="cal-ev-title" placeholder="Event title">
+      <textarea id="cal-ev-desc" placeholder="Description (optional)"></textarea>
+      <div class="cal-event-row2">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Start</label>
+          <input type="datetime-local" id="cal-ev-start">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">End</label>
+          <input type="datetime-local" id="cal-ev-end">
+        </div>
+      </div>
+      <div class="cal-event-row2">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Type</label>
+          <select id="cal-ev-type">
+            <option value="appointment">Appointment</option>
+            <option value="deadline">Deadline</option>
+            <option value="task">Task</option>
+            <option value="meeting">Meeting</option>
+            <option value="recurring">Recurring</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Repeat</label>
+          <select id="cal-ev-repeat">
+            <option value="">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="cal-event-foot">
+      <button class="del" id="cal-ev-delete" onclick="ccCalDeleteEvent()" style="display:none;">Delete</button>
+      <div style="flex:1;"></div>
+      <button onclick="ccCalCloseModal()">Cancel</button>
+      <button class="save" onclick="ccCalSaveEvent()">Save</button>
     </div>
   </div>
-  <div class="cal-weekdays">
-    <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
-  </div>
-  <div class="cal-grid" id="cal-grid"></div>
-</section>
+</div>
 
 <!-- Phase 8: Documents -->
 <!-- Ideas panel (Second Brain) -->
@@ -3985,61 +4083,283 @@ async function ccQuickAddSubmit() {
   } catch (err) { console.error(err); }
 }
 
-// ── Phase 4: Calendar ─────────────────────────────────────────────
-let CC_CAL_MONTH = (() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() + 1 }; })();
+// ── Phase 4a: Calendar ─────────────────────────────────────────────
+// View state: month + anchor date (for month/week navigation), selected
+// day (for the side panel), and the last-fetched tasksByDate snapshot.
+let CC_CAL_VIEW = 'month'; // 'month' | 'week'
+let CC_CAL_ANCHOR = new Date();
+let CC_CAL_TASKS_BY_DATE = {};
+let CC_CAL_EVENTS = [];
+let CC_CAL_SELECTED_DAY = null; // 'YYYY-MM-DD'
+let CC_CAL_EDITING = null; // event row being edited
 const CC_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-function ccCalendarPrev() { CC_CAL_MONTH.month--; if (CC_CAL_MONTH.month < 1) { CC_CAL_MONTH.month = 12; CC_CAL_MONTH.year--; } ccLoadCalendar(); }
-function ccCalendarNext() { CC_CAL_MONTH.month++; if (CC_CAL_MONTH.month > 12) { CC_CAL_MONTH.month = 1; CC_CAL_MONTH.year++; } ccLoadCalendar(); }
-function ccCalendarToday() { const d = new Date(); CC_CAL_MONTH = { year: d.getFullYear(), month: d.getMonth() + 1 }; ccLoadCalendar(); }
+function ccCalendarSetView(v) { CC_CAL_VIEW = v; ccLoadCalendar(); }
+function ccCalendarPrev() {
+  if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() - 7);
+  else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() - 1, 1);
+  ccLoadCalendar();
+}
+function ccCalendarNext() {
+  if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() + 7);
+  else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() + 1, 1);
+  ccLoadCalendar();
+}
+function ccCalendarToday() { CC_CAL_ANCHOR = new Date(); ccLoadCalendar(); }
+
+function ccCalUpdateViewButtons() {
+  const m = document.getElementById('cal-view-month');
+  const w = document.getElementById('cal-view-week');
+  if (m) m.style.borderColor = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : '';
+  if (m) m.style.color       = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : '';
+  if (w) w.style.borderColor = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : '';
+  if (w) w.style.color       = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : '';
+  const wkdays = document.getElementById('cal-weekdays-row');
+  if (wkdays) wkdays.style.display = CC_CAL_VIEW === 'month' ? '' : 'none';
+}
 
 async function ccLoadCalendar() {
   const grid = document.getElementById('cal-grid');
   const label = document.getElementById('cal-label');
   if (!grid || !label) return;
-  const { year, month } = CC_CAL_MONTH;
+  ccCalUpdateViewButtons();
+  if (CC_CAL_VIEW === 'week') {
+    await ccCalRenderWeek();
+  } else {
+    await ccCalRenderMonth();
+  }
+  ccCalRenderDayPanel();
+}
+
+async function ccCalRenderMonth() {
+  const grid = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-label');
+  if (!grid || !label) return;
+  grid.className = 'cal-grid';
+  const year = CC_CAL_ANCHOR.getFullYear();
+  const month = CC_CAL_ANCHOR.getMonth() + 1;
   label.textContent = CC_MONTH_NAMES[month - 1] + ' ' + year;
   const monthStr = year + '-' + String(month).padStart(2, '0');
-  let tasksByDate = {};
   try {
     const r = await fetch('/api/calendar?month=' + monthStr);
     const data = await r.json();
-    tasksByDate = data.tasksByDate || {};
-  } catch (err) { console.warn('ccLoadCalendar fetch failed', err); }
+    CC_CAL_TASKS_BY_DATE = data.tasksByDate || {};
+  } catch (err) {
+    console.warn('ccCalRenderMonth fetch failed', err);
+    CC_CAL_TASKS_BY_DATE = {};
+  }
   const firstDay = new Date(year, month - 1, 1);
   const firstWeekday = firstDay.getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysInPrev = new Date(year, month - 1, 0).getDate();
-  const today = new Date();
-  const todayKey = today.toISOString().slice(0, 10);
+  const todayKey = new Date().toISOString().slice(0, 10);
   const cells = [];
-  // Leading days from previous month
-  for (let i = firstWeekday - 1; i >= 0; i--) {
-    const d = daysInPrev - i;
-    cells.push({ date: d, key: null, off: true });
-  }
+  for (let i = firstWeekday - 1; i >= 0; i--) cells.push({ date: daysInPrev - i, key: null, off: true });
   for (let d = 1; d <= daysInMonth; d++) {
     const key = monthStr + '-' + String(d).padStart(2, '0');
     cells.push({ date: d, key, off: false, today: key === todayKey });
   }
-  // Trailing days to complete 6x7 grid (42 cells)
-  while (cells.length < 42) {
-    const d = cells.length - firstWeekday - daysInMonth + 1;
-    cells.push({ date: d, key: null, off: true });
-  }
-  grid.innerHTML = cells.map(cell => {
+  while (cells.length < 42) cells.push({ date: cells.length - firstWeekday - daysInMonth + 1, key: null, off: true });
+  grid.innerHTML = cells.map((cell) => {
     const classes = ['cal-cell'];
     if (cell.off) classes.push('off');
     if (cell.today) classes.push('today');
-    const tasks = (cell.key && tasksByDate[cell.key]) || [];
+    const tasks = (cell.key && CC_CAL_TASKS_BY_DATE[cell.key]) || [];
+    if (tasks.length > 0) classes.push('has-events');
     const visible = tasks.slice(0, 2);
     const extra = tasks.length - visible.length;
-    const pills = visible.map(t =>
-      '<div class="cal-pill" title="' + ccEscapeHtml(t.prompt) + ' (' + ccEscapeHtml(t.schedule) + ')"><span class="cal-pill-time">' + ccEscapeHtml(t.time) + '</span>' + ccEscapeHtml(t.prompt.slice(0, 50)) + '</div>'
-    ).join('');
+    const pills = visible.map((t) => {
+      const cls = t.source === 'event' ? 'cal-pill event' : 'cal-pill';
+      const title = ccEscapeHtml(t.prompt) + ' · ' + ccEscapeHtml(t.schedule || '');
+      return '<div class="' + cls + '" title="' + title + '"><span class="cal-pill-time">' + ccEscapeHtml(t.time) + '</span>' + ccEscapeHtml(t.prompt.slice(0, 40)) + '</div>';
+    }).join('');
     const more = extra > 0 ? '<div class="cal-more">+' + extra + ' more</div>' : '';
-    return '<div class="' + classes.join(' ') + '"><div class="cal-date">' + cell.date + '</div>' + pills + more + '</div>';
+    const clickAttr = cell.key ? ' onclick="ccCalSelectDay(\\'' + cell.key + '\\')"' : '';
+    return '<div class="' + classes.join(' ') + '"' + clickAttr + '><div class="cal-date">' + cell.date + '</div>' + pills + more + '</div>';
   }).join('');
+}
+
+function ccCalMondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day); // treat Monday as week start for week view
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+}
+
+async function ccCalRenderWeek() {
+  const grid = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-label');
+  if (!grid || !label) return;
+  grid.className = 'cal-week-grid';
+  const start = ccCalMondayOf(CC_CAL_ANCHOR);
+  const days = [];
+  for (let i = 0; i < 7; i++) days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  const fromTs = Math.floor(start.getTime() / 1000);
+  const toTs = fromTs + 86400 * 7;
+  label.textContent = 'Week of ' + days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  try {
+    const r = await fetch('/api/calendar/events?from=' + fromTs + '&to=' + toTs);
+    const data = await r.json();
+    CC_CAL_EVENTS = data.events || [];
+  } catch (err) {
+    console.warn('ccCalRenderWeek events fetch failed', err);
+    CC_CAL_EVENTS = [];
+  }
+  const todayKey = new Date().toISOString().slice(0, 10);
+  // Header row: empty corner + day headers
+  const headers = days.map((d) => {
+    const key = d.toISOString().slice(0, 10);
+    const classes = ['cal-week-dayhead'];
+    if (key === todayKey) classes.push('today-col');
+    const lab = d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.getDate();
+    return '<div class="' + classes.join(' ') + '">' + ccEscapeHtml(lab) + '</div>';
+  }).join('');
+  const rows = [];
+  rows.push('<div></div>' + headers);
+  for (let h = 6; h < 22; h++) {
+    const hh = String(h).padStart(2, '0') + ':00';
+    let row = '<div class="cal-week-hour-label">' + hh + '</div>';
+    for (const day of days) {
+      const dayKey = day.toISOString().slice(0, 10);
+      const cellEvents = CC_CAL_EVENTS.filter((ev) => {
+        const evDate = new Date(ev.start_time * 1000);
+        return evDate.toISOString().slice(0, 10) === dayKey && evDate.getHours() === h;
+      });
+      const pills = cellEvents.map((ev) => {
+        const d = new Date(ev.start_time * 1000);
+        const hhmm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        return '<div class="cal-pill event" onclick="ccCalOpenEvent(' + ev.id + ')" title="' + ccEscapeHtml(ev.title) + '"><span class="cal-pill-time">' + hhmm + '</span>' + ccEscapeHtml(ev.title.slice(0, 26)) + '</div>';
+      }).join('');
+      const todayCls = dayKey === todayKey ? ' today-col' : '';
+      row += '<div class="cal-week-cell' + todayCls + '" onclick="ccCalNewEventAtHour(\\'' + dayKey + '\\',' + h + ')">' + pills + '</div>';
+    }
+    rows.push(row);
+  }
+  grid.innerHTML = rows.join('');
+}
+
+// Day detail side panel
+function ccCalSelectDay(dateKey) {
+  CC_CAL_SELECTED_DAY = dateKey;
+  const layout = document.getElementById('cal-layout');
+  const panel = document.getElementById('cal-day-panel');
+  if (layout) layout.classList.add('with-panel');
+  if (panel) panel.style.display = '';
+  ccCalRenderDayPanel();
+}
+
+function ccCalCloseDayPanel() {
+  CC_CAL_SELECTED_DAY = null;
+  const layout = document.getElementById('cal-layout');
+  const panel = document.getElementById('cal-day-panel');
+  if (layout) layout.classList.remove('with-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function ccCalRenderDayPanel() {
+  const panel = document.getElementById('cal-day-panel');
+  if (!panel) return;
+  if (!CC_CAL_SELECTED_DAY) { panel.innerHTML = ''; return; }
+  const key = CC_CAL_SELECTED_DAY;
+  const parts = key.split('-');
+  const d = new Date(parseInt(parts[0],10), parseInt(parts[1],10) - 1, parseInt(parts[2],10));
+  const header = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const tasks = (CC_CAL_TASKS_BY_DATE[key] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+  const items = tasks.map((t) => {
+    const evId = (t.source === 'event' && typeof t.id === 'string' && t.id.startsWith('event_')) ? parseInt(t.id.slice(6), 10) : null;
+    const onClick = evId ? 'onclick="ccCalOpenEvent(' + evId + ')"' : '';
+    const cls = t.source === 'cron' ? 'cal-day-item cron' : 'cal-day-item';
+    const sub = t.source === 'cron' ? ('Scheduled task · ' + ccEscapeHtml(t.schedule)) : ccEscapeHtml(t.event_type || 'event');
+    return '<div class="' + cls + '" ' + onClick + '><div class="cal-day-item-title">' + ccEscapeHtml(t.prompt) + '</div><div class="cal-day-item-meta">' + ccEscapeHtml(t.time) + ' · ' + sub + '</div></div>';
+  }).join('');
+  const empty = tasks.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);">No events.</div>' : '';
+  panel.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+      '<div><h3>' + ccEscapeHtml(header) + '</h3></div>' +
+      '<button onclick="ccCalCloseDayPanel()" style="background:transparent;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;">&times;</button>' +
+    '</div>' +
+    items + empty +
+    '<button class="cal-day-add-btn" onclick="ccCalNewEventAtDay(\\'' + key + '\\')">+ New event</button>';
+}
+
+// Event modal
+function ccCalOpenModal(preset) {
+  CC_CAL_EDITING = preset && preset.id ? preset : null;
+  document.getElementById('cal-event-title-h').textContent = CC_CAL_EDITING ? 'Edit Event' : 'New Event';
+  document.getElementById('cal-ev-delete').style.display = CC_CAL_EDITING ? '' : 'none';
+  document.getElementById('cal-ev-title').value = (preset && preset.title) || '';
+  document.getElementById('cal-ev-desc').value = (preset && preset.description) || '';
+  const startInput = document.getElementById('cal-ev-start');
+  const endInput = document.getElementById('cal-ev-end');
+  const fmt = (ts) => {
+    const dt = new Date(ts * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+  };
+  startInput.value = preset && preset.start_time ? fmt(preset.start_time) : '';
+  endInput.value = preset && preset.end_time ? fmt(preset.end_time) : '';
+  document.getElementById('cal-ev-type').value = (preset && preset.event_type) || 'appointment';
+  document.getElementById('cal-ev-repeat').value = (preset && preset.repeat) || '';
+  document.getElementById('cal-event-overlay').classList.add('open');
+  document.getElementById('cal-ev-title').focus();
+}
+
+function ccCalCloseModal() {
+  document.getElementById('cal-event-overlay').classList.remove('open');
+  CC_CAL_EDITING = null;
+}
+
+function ccCalNewEventAtDay(dateKey) {
+  const parts = dateKey.split('-');
+  const d = new Date(parseInt(parts[0],10), parseInt(parts[1],10) - 1, parseInt(parts[2],10), 9, 0, 0);
+  ccCalOpenModal({ start_time: Math.floor(d.getTime() / 1000), end_time: Math.floor(d.getTime() / 1000) + 3600 });
+}
+
+function ccCalNewEventAtHour(dateKey, hour) {
+  const parts = dateKey.split('-');
+  const d = new Date(parseInt(parts[0],10), parseInt(parts[1],10) - 1, parseInt(parts[2],10), hour, 0, 0);
+  ccCalOpenModal({ start_time: Math.floor(d.getTime() / 1000), end_time: Math.floor(d.getTime() / 1000) + 3600 });
+}
+
+async function ccCalOpenEvent(id) {
+  try {
+    const r = await fetch('/api/calendar/events?from=' + (Math.floor(Date.now()/1000) - 86400*365) + '&to=' + (Math.floor(Date.now()/1000) + 86400*730));
+    const data = await r.json();
+    const ev = (data.events || []).find((e) => e.id === id);
+    if (ev) ccCalOpenModal(ev);
+  } catch (err) { console.warn('ccCalOpenEvent failed', err); }
+}
+
+async function ccCalSaveEvent() {
+  const title = document.getElementById('cal-ev-title').value.trim();
+  if (!title) { alert('Title required'); return; }
+  const desc = document.getElementById('cal-ev-desc').value;
+  const startRaw = document.getElementById('cal-ev-start').value;
+  const endRaw = document.getElementById('cal-ev-end').value;
+  const type = document.getElementById('cal-ev-type').value;
+  const repeat = document.getElementById('cal-ev-repeat').value || null;
+  if (!startRaw) { alert('Start time required'); return; }
+  const startTs = Math.floor(new Date(startRaw).getTime() / 1000);
+  const endTs = endRaw ? Math.floor(new Date(endRaw).getTime() / 1000) : null;
+  const payload = { title, description: desc, event_type: type, start_time: startTs, end_time: endTs, repeat };
+  let r;
+  if (CC_CAL_EDITING && CC_CAL_EDITING.id) {
+    r = await fetch('/api/calendar/events/' + CC_CAL_EDITING.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } else {
+    r = await fetch('/api/calendar/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  }
+  if (!r.ok) { alert('Save failed'); return; }
+  ccCalCloseModal();
+  await ccLoadCalendar();
+}
+
+async function ccCalDeleteEvent() {
+  if (!CC_CAL_EDITING || !CC_CAL_EDITING.id) return;
+  if (!confirm('Delete this event?')) return;
+  const r = await fetch('/api/calendar/events/' + CC_CAL_EDITING.id, { method: 'DELETE' });
+  if (!r.ok) { alert('Delete failed'); return; }
+  ccCalCloseModal();
+  await ccLoadCalendar();
 }
 
 // Re-run calendar when workspace switches (part of refreshWorkspacePanels)

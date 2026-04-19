@@ -2291,6 +2291,34 @@ export function reassignMissionTask(id: string, newAgent: string): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Manually set a mission_task's kanban status. Used by the dashboard Kanban
+ * drag/arrow actions. Allowed transitions are open enough for human board
+ * management (queued ↔ in_progress ↔ completed), but 'cancelled' + 'failed'
+ * are blocked from here since they need dedicated cancel/fail flows.
+ */
+export function setMissionTaskStatus(
+  id: string,
+  status: 'queued' | 'in_progress' | 'completed',
+): boolean {
+  const now = Math.floor(Date.now() / 1000);
+  const completedAt = status === 'completed' ? now : null;
+  const startedAt = status === 'in_progress' ? now : null;
+  // Only update started_at if transitioning into in_progress for the first time.
+  const sql = status === 'completed'
+    ? `UPDATE mission_tasks SET status = ?, completed_at = COALESCE(completed_at, ?) WHERE id = ? AND status IN ('queued','in_progress','completed')`
+    : status === 'in_progress'
+      ? `UPDATE mission_tasks SET status = ?, started_at = COALESCE(started_at, ?) WHERE id = ? AND status IN ('queued','in_progress','completed')`
+      : `UPDATE mission_tasks SET status = ?, completed_at = NULL WHERE id = ? AND status IN ('queued','in_progress','completed')`;
+  const params = status === 'completed'
+    ? [status, completedAt, id]
+    : status === 'in_progress'
+      ? [status, startedAt, id]
+      : [status, id];
+  const result = db.prepare(sql).run(...params);
+  return result.changes > 0;
+}
+
 export function assignMissionTask(id: string, agent: string): boolean {
   const result = db.prepare(
     `UPDATE mission_tasks SET assigned_agent = ? WHERE id = ? AND assigned_agent IS NULL AND status = 'queued'`,

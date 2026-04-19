@@ -504,6 +504,48 @@ const WARROOM_ENABLED = warroomEnabled;
   .mtg-modal-foot .del { color: var(--status-offline); border-color: rgba(239,68,68,0.35); }
   .mtg-modal-foot .voice { color: var(--accent-gold); border-color: rgba(212,175,55,0.4); }
 
+  /* ── Mission Board Kanban (OC MC parity) ────────────────────────── */
+  .mk-filterbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .mk-filter { background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 7px 14px; border-radius: 6px; font-size: 12px; font-family: 'IBM Plex Sans', sans-serif; min-width: 150px; }
+  .mk-filter:focus { border-color: var(--ws-accent); outline: none; }
+  .mk-auto-assign { background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .mk-history-btn { background: transparent; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 7px 10px; margin-left: auto; font-family: inherit; }
+  .mk-history-btn:hover { color: var(--text-primary); }
+  .mk-board { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: start; min-height: 400px; }
+  @media (max-width: 1100px) { .mk-board { grid-template-columns: 1fr; } }
+  .mk-col { display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0 12px 12px; min-height: 340px; position: relative; overflow: hidden; }
+  .mk-col-bar { height: 3px; margin: 0 -12px 12px; }
+  .mk-col-head { display: flex; align-items: center; gap: 8px; padding: 4px 2px 0; }
+  .mk-col-icon { font-size: 15px; }
+  .mk-col-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; }
+  .mk-col-count { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .mk-add { background: transparent; border: 1px dashed rgba(255,255,255,0.18); color: var(--text-muted); border-radius: 6px; padding: 10px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .mk-add:hover { background: rgba(255,255,255,0.03); }
+  .mk-col-body { display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  .mk-col-body.drop-target { background: rgba(var(--ws-accent-rgb), 0.05); border: 1px dashed rgba(var(--ws-accent-rgb), 0.5); border-radius: 6px; padding: 4px; }
+  .mk-col-empty { font-size: 11px; color: var(--text-muted); text-align: center; padding: 16px 8px; font-style: italic; }
+
+  .mk-card { position: relative; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; cursor: grab; transition: background 0.15s, border-color 0.15s, transform 0.15s; display: flex; flex-direction: column; gap: 8px; }
+  .mk-card:hover { background: var(--bg-card-hover); border-color: var(--border-active); }
+  .mk-card:active { cursor: grabbing; }
+  .mk-card[data-col="queued"]      { border-left: 3px solid #a855f7; }
+  .mk-card[data-col="in_progress"] { border-left: 3px solid #fbbf24; }
+  .mk-card[data-col="completed"]   { border-left: 3px solid #22c55e; }
+  .mk-card-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.35; padding-right: 30px; word-break: break-word; }
+  .mk-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+  .mk-card-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .mk-badge { font-family: 'Bricolage Grotesque', sans-serif; font-size: 10px; padding: 2px 8px; border-radius: 3px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid transparent; }
+  .mk-badge.priority-critical { background: rgba(220,38,38,0.15);  color: #f87171; border-color: rgba(220,38,38,0.4); }
+  .mk-badge.priority-high     { background: rgba(245,158,11,0.15); color: #fb923c; border-color: rgba(245,158,11,0.4); }
+  .mk-badge.priority-medium   { background: rgba(59,130,246,0.15); color: #60a5fa; border-color: rgba(59,130,246,0.4); }
+  .mk-badge.priority-low      { background: rgba(107,114,128,0.15); color: #9ca3af; border-color: rgba(107,114,128,0.4); }
+  .mk-badge.agent             { background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-subtle); }
+  .mk-badge.agent.dot-live::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--status-online); margin-right: 4px; vertical-align: middle; }
+  .mk-card-advance { position: absolute; top: 10px; right: 10px; background: transparent; border: 1px solid var(--border-subtle); border-radius: 4px; width: 24px; height: 24px; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0; transition: opacity 0.15s; }
+  .mk-card:hover .mk-card-advance { opacity: 1; }
+  .mk-card-advance:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
+  .mk-card.dragging { opacity: 0.4; }
+
   /* ── Documents (Phase 2, OC MC parity) ─────────────────────────── */
   .doc-list { display: flex; flex-direction: column; gap: 6px; }
   .doc-empty { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 48px; text-align: center; }
@@ -888,26 +930,62 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
 </div>
 
 <!-- Tasks Inbox -->
-<div id="tasks-inbox-section" class="mb-5" data-cc-page="mission" style="display:none">
-  <div class="flex items-center justify-between mb-2">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Tasks</h2>
-    <div class="flex gap-2">
-      <button onclick="autoAssignAll()" id="auto-assign-all-btn" style="background:#1a1a1a;color:#a78bfa;border:1px solid #2a2a2a;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;display:none">Auto-assign All</button>
-      <button onclick="openMissionModal()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer">+ New</button>
+<!-- Mission Board Kanban — BACKLOG / IN PROGRESS / DONE (OC MC parity) -->
+<section data-cc-page="mission" class="mt-2" id="mission-kanban-wrap">
+  <div class="mk-filterbar">
+    <select class="mk-filter" id="mk-biz" onchange="ccKanbanRefilter()">
+      <option value="">All Workspaces</option>
+    </select>
+    <select class="mk-filter" id="mk-priority" onchange="ccKanbanRefilter()">
+      <option value="">All Priorities</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <select class="mk-filter" id="mk-assignee" onchange="ccKanbanRefilter()">
+      <option value="">All Assignees</option>
+      <option value="__unassigned__">Unassigned</option>
+    </select>
+    <button type="button" class="mk-auto-assign" id="mk-auto-assign" onclick="autoAssignAll()" style="display:none;">Auto-assign All</button>
+    <button type="button" class="mk-history-btn" onclick="openTaskHistory()">History →</button>
+  </div>
+  <div class="mk-board" id="mk-board">
+    <div class="mk-col" data-status="queued">
+      <div class="mk-col-bar" style="background:#a855f7;"></div>
+      <div class="mk-col-head">
+        <span class="mk-col-icon" style="color:#a855f7;">📥</span>
+        <span class="mk-col-title" style="color:#c084fc;">BACKLOG</span>
+        <span class="mk-col-count" id="mk-count-queued">0</span>
+      </div>
+      <button type="button" class="mk-add" style="border-color:rgba(168,85,247,0.5); color:#c084fc;" onclick="ccKanbanAddTask('queued')">+ Add Task</button>
+      <div class="mk-col-body" id="mk-col-queued" data-status="queued"
+           ondragover="ccKanbanDragOver(event)" ondragleave="ccKanbanDragLeave(event)" ondrop="ccKanbanDrop(event)"></div>
+    </div>
+    <div class="mk-col" data-status="in_progress">
+      <div class="mk-col-bar" style="background:#fbbf24;"></div>
+      <div class="mk-col-head">
+        <span class="mk-col-icon" style="color:#fbbf24;">⚡</span>
+        <span class="mk-col-title" style="color:#fcd34d;">IN PROGRESS</span>
+        <span class="mk-col-count" id="mk-count-in_progress">0</span>
+      </div>
+      <button type="button" class="mk-add" style="border-color:rgba(251,191,36,0.5); color:#fcd34d;" onclick="ccKanbanAddTask('in_progress')">+ Add Task</button>
+      <div class="mk-col-body" id="mk-col-in_progress" data-status="in_progress"
+           ondragover="ccKanbanDragOver(event)" ondragleave="ccKanbanDragLeave(event)" ondrop="ccKanbanDrop(event)"></div>
+    </div>
+    <div class="mk-col" data-status="completed">
+      <div class="mk-col-bar" style="background:#22c55e;"></div>
+      <div class="mk-col-head">
+        <span class="mk-col-icon" style="color:#22c55e;">✅</span>
+        <span class="mk-col-title" style="color:#4ade80;">DONE</span>
+        <span class="mk-col-count" id="mk-count-completed">0</span>
+      </div>
+      <button type="button" class="mk-add" style="border-color:rgba(34,197,94,0.5); color:#4ade80;" onclick="ccKanbanAddTask('completed')">+ Add Task</button>
+      <div class="mk-col-body" id="mk-col-completed" data-status="completed"
+           ondragover="ccKanbanDragOver(event)" ondragleave="ccKanbanDragLeave(event)" ondrop="ccKanbanDrop(event)"></div>
     </div>
   </div>
-  <div id="tasks-inbox" class="flex flex-wrap gap-3"></div>
-</div>
-
-<!-- Mission Control -->
-<div id="mission-section" class="mb-5" data-cc-page="mission" style="display:none">
-  <div class="flex items-center justify-between mb-2">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Mission Control</h2>
-    <button onclick="openTaskHistory()" style="background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer">History &rarr;</button>
-  </div>
-  <div id="mission-board" class="flex gap-3 overflow-x-auto pb-2" style="scroll-snap-type: x mandatory;">
-  </div>
-</div>
+</section>
 
 <!-- Mission Task Creation Modal -->
 <div id="mission-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:40;opacity:0;pointer-events:none;transition:opacity 0.2s"></div>
@@ -3327,9 +3405,45 @@ async function loadSummary() {
   } catch {}
 }
 
-// ── Mission Control ──────────────────────────────────────────────────
+// ── Mission Control Kanban ──────────────────────────────────────────
+// The mission page is now a 3-column status-based Kanban (BACKLOG /
+// IN PROGRESS / DONE). Data is fetched once and filtered client-side
+// via the top filter bar (workspace, priority, assignee).
 
 let missionAgentsList = [];
+let CC_KANBAN_ALL_TASKS = [];
+const CC_KANBAN_DONE_VISIBLE_SECS = 30 * 60; // completed tasks stay on the board this long
+
+function ccKanbanPriorityBucket(priority) {
+  if (priority >= 9) return 'critical';
+  if (priority >= 6) return 'high';
+  if (priority >= 3) return 'medium';
+  return 'low';
+}
+
+function ccKanbanPopulateFilters() {
+  const bizSel = document.getElementById('mk-biz');
+  if (bizSel) {
+    const current = bizSel.value;
+    const opts = ['<option value="">All Workspaces</option>'];
+    for (const w of CC_WORKSPACES.values()) {
+      if (w.slug === 'cross-business') continue;
+      opts.push('<option value="' + w.slug + '">' + ccEscapeHtml(w.icon_emoji + ' ' + w.name) + '</option>');
+    }
+    bizSel.innerHTML = opts.join('');
+    if (current) bizSel.value = current;
+  }
+  const asgSel = document.getElementById('mk-assignee');
+  if (asgSel) {
+    const current = asgSel.value;
+    const opts = ['<option value="">All Assignees</option>', '<option value="__unassigned__">Unassigned</option>'];
+    for (const a of missionAgentsList) {
+      opts.push('<option value="' + ccEscapeHtml(a.id) + '">' + ccEscapeHtml(a.name || a.id) + '</option>');
+    }
+    asgSel.innerHTML = opts.join('');
+    if (current) asgSel.value = current;
+  }
+}
 
 async function loadMissionControl() {
   try {
@@ -3337,68 +3451,151 @@ async function loadMissionControl() {
       api('/api/mission/tasks'),
       api('/api/agents'),
     ]);
-    const tasks = taskData.tasks || [];
+    CC_KANBAN_ALL_TASKS = taskData.tasks || [];
     missionAgentsList = agentData.agents || [];
-
-    // Split: unassigned go to inbox, assigned go to agent columns
-    const unassigned = tasks.filter(t => !t.assigned_agent && t.status === 'queued');
-    // Only show completed tasks for 30 minutes, then they move to history only
-    const now = Math.floor(Date.now() / 1000);
-    const DONE_VISIBLE_SECS = 30 * 60;
-    const assigned = tasks.filter(t => {
-      if (!t.assigned_agent) return false;
-      if (t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled') {
-        return t.completed_at && (now - t.completed_at) < DONE_VISIBLE_SECS;
-      }
-      return true;
-    });
-
-    // Tasks Inbox
-    const inboxSection = document.getElementById('tasks-inbox-section');
-    const inboxEl = document.getElementById('tasks-inbox');
-    const autoAllBtn = document.getElementById('auto-assign-all-btn');
-    inboxSection.style.display = '';
-    autoAllBtn.style.display = unassigned.length > 0 ? '' : 'none';
-    if (unassigned.length > 0) {
-      inboxEl.innerHTML = unassigned.map(renderInboxCard).join('');
-    } else {
-      inboxEl.innerHTML = '<div class="text-xs text-gray-600 py-2">No unassigned tasks. Click + New to create one.</div>';
-    }
-
-    // Mission Control agent columns
-    if (assigned.length === 0 && missionAgentsList.length <= 1) {
-      document.getElementById('mission-section').style.display = 'none';
-    } else {
-      document.getElementById('mission-section').style.display = '';
-      const board = document.getElementById('mission-board');
-      const agentIds = missionAgentsList.map(a => a.id);
-      const cols = {};
-      agentIds.forEach(id => { cols[id] = []; });
-
-      assigned.forEach(t => {
-        if (cols[t.assigned_agent]) cols[t.assigned_agent].push(t);
-      });
-
-      let html = '';
-      agentIds.forEach(id => {
-        const agent = missionAgentsList.find(a => a.id === id);
-        const color = AGENT_COLORS[id] || '#6b7280';
-        const dot = agent && agent.running
-          ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:4px"></span>'
-          : '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;border:1px solid #555;margin-right:4px"></span>';
-        const agentTasks = cols[id] || [];
-        html += '<div class="flex-shrink-0" style="min-width:220px;scroll-snap-align:start;">' +
-          '<div class="text-xs font-semibold mb-1 uppercase" style="color:' + color + '">' + dot + (agent ? agent.name : id) + '</div>' +
-          '<div data-drop-agent="' + id + '" ondragover="missionDragOver(event)" ondragleave="missionDragLeave(event)" ondrop="missionDrop(event)" style="border:1px solid #2a2a2a;border-radius:10px;padding:8px;min-height:120px;background:#141414;transition:border-color 0.2s,background 0.2s">' +
-          (agentTasks.length ? agentTasks.map(renderMissionCard).join('') : '<div class="text-xs text-gray-600 text-center py-4">No tasks</div>') +
-          '</div></div>';
-      });
-
-      board.innerHTML = html;
-    }
-  } catch(e) {
+    ccKanbanPopulateFilters();
+    ccKanbanRender();
+  } catch (e) {
     console.error('Mission load error:', e);
   }
+}
+
+function ccKanbanRefilter() {
+  ccKanbanRender();
+}
+
+function ccKanbanRender() {
+  const bizSlug = (document.getElementById('mk-biz') || {}).value || '';
+  const priorityFilter = (document.getElementById('mk-priority') || {}).value || '';
+  const assigneeFilter = (document.getElementById('mk-assignee') || {}).value || '';
+  const now = Math.floor(Date.now() / 1000);
+
+  const matches = (t) => {
+    if (bizSlug) {
+      // mission_tasks carry business_id in the schema; the API should return it.
+      const wsSlug = (() => {
+        if (!t.business_id) return '';
+        for (const w of CC_WORKSPACES.values()) if (w.id === t.business_id) return w.slug;
+        return '';
+      })();
+      if (wsSlug !== bizSlug) return false;
+    }
+    if (priorityFilter && ccKanbanPriorityBucket(t.priority || 0) !== priorityFilter) return false;
+    if (assigneeFilter === '__unassigned__') {
+      if (t.assigned_agent) return false;
+    } else if (assigneeFilter) {
+      if (t.assigned_agent !== assigneeFilter) return false;
+    }
+    return true;
+  };
+
+  const cols = { queued: [], in_progress: [], completed: [] };
+  let unassignedCount = 0;
+  for (const t of CC_KANBAN_ALL_TASKS) {
+    if (!matches(t)) continue;
+    if (!t.assigned_agent && t.status === 'queued') unassignedCount++;
+    if (t.status === 'queued') cols.queued.push(t);
+    else if (t.status === 'in_progress' || t.status === 'running') cols.in_progress.push(t);
+    else if (t.status === 'completed') {
+      if (t.completed_at && (now - t.completed_at) < CC_KANBAN_DONE_VISIBLE_SECS) cols.completed.push(t);
+    }
+  }
+
+  for (const status of ['queued', 'in_progress', 'completed']) {
+    const body = document.getElementById('mk-col-' + status);
+    const countEl = document.getElementById('mk-count-' + status);
+    const items = cols[status];
+    if (countEl) countEl.textContent = String(items.length);
+    if (!body) continue;
+    if (items.length === 0) {
+      body.innerHTML = '<div class="mk-col-empty">No tasks</div>';
+    } else {
+      body.innerHTML = items.map((t) => ccKanbanRenderCard(t, status)).join('');
+    }
+  }
+
+  const autoBtn = document.getElementById('mk-auto-assign');
+  if (autoBtn) autoBtn.style.display = unassignedCount > 0 ? '' : 'none';
+}
+
+function ccKanbanRenderCard(t, status) {
+  const bucket = ccKanbanPriorityBucket(t.priority || 0);
+  const agent = t.assigned_agent ? missionAgentsList.find((a) => a.id === t.assigned_agent) : null;
+  const agentLabel = agent ? agent.name : (t.assigned_agent || 'Unassigned');
+  const agentDotCls = agent && agent.running ? ' dot-live' : '';
+  const descRaw = t.prompt || '';
+  const advanceArrow = status === 'queued'
+    ? '<button class="mk-card-advance" onclick="event.stopPropagation();ccKanbanAdvance(\\'' + t.id + '\\', \\'in_progress\\')" title="Move to In Progress">→</button>'
+    : status === 'in_progress'
+      ? '<button class="mk-card-advance" onclick="event.stopPropagation();ccKanbanAdvance(\\'' + t.id + '\\', \\'completed\\')" title="Move to Done">✓</button>'
+      : '';
+  return '<div class="mk-card" data-col="' + status + '" data-mid="' + t.id + '" draggable="true"' +
+    ' ondragstart="ccKanbanDragStart(event)" ondragend="ccKanbanDragEnd(event)"' +
+    ' onclick="ccKanbanOpen(\\'' + t.id + '\\')">' +
+    advanceArrow +
+    '<div class="mk-card-title">' + ccEscapeHtml(t.title || 'Untitled') + '</div>' +
+    (descRaw ? '<div class="mk-card-desc">' + ccEscapeHtml(descRaw) + '</div>' : '') +
+    '<div class="mk-card-badges">' +
+      '<span class="mk-badge priority-' + bucket + '">' + bucket + '</span>' +
+      '<span class="mk-badge agent' + agentDotCls + '">' + ccEscapeHtml(agentLabel) + '</span>' +
+    '</div>' +
+  '</div>';
+}
+
+function ccKanbanAddTask(status) {
+  window.CC_KANBAN_ADD_STATUS = status;
+  if (typeof openMissionModal === 'function') openMissionModal();
+}
+
+async function ccKanbanAdvance(id, nextStatus) {
+  try {
+    const r = await fetch('/api/mission/tasks/' + id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert('Move failed: ' + (err.error || r.status));
+      return;
+    }
+    await loadMissionControl();
+  } catch (err) { console.warn('ccKanbanAdvance failed', err); }
+}
+
+function ccKanbanOpen(id) {
+  // Reuse the existing task detail drawer if available; otherwise no-op.
+  if (typeof openMissionTaskDetail === 'function') openMissionTaskDetail(id);
+}
+
+// ── Drag + drop between status columns ────────────────────────────
+let CC_KANBAN_DRAG_ID = null;
+
+function ccKanbanDragStart(ev) {
+  const card = ev.currentTarget;
+  CC_KANBAN_DRAG_ID = card.dataset.mid;
+  card.classList.add('dragging');
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', CC_KANBAN_DRAG_ID); }
+}
+function ccKanbanDragEnd(ev) { ev.currentTarget.classList.remove('dragging'); CC_KANBAN_DRAG_ID = null; }
+function ccKanbanDragOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('drop-target'); if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; }
+function ccKanbanDragLeave(ev) { ev.currentTarget.classList.remove('drop-target'); }
+async function ccKanbanDrop(ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drop-target');
+  const target = ev.currentTarget.dataset.status;
+  const id = CC_KANBAN_DRAG_ID || (ev.dataTransfer && ev.dataTransfer.getData('text/plain'));
+  if (!id || !target) return;
+  try {
+    const r = await fetch('/api/mission/tasks/' + id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: target }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert('Move failed: ' + (err.error || r.status));
+    }
+    await loadMissionControl();
+  } catch (err) { console.warn('ccKanbanDrop failed', err); }
 }
 
 function renderInboxCard(t) {

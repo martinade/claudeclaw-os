@@ -34,6 +34,7 @@ import {
   cancelMissionTask,
   deleteMissionTask,
   reassignMissionTask,
+  setMissionTaskStatus,
   assignMissionTask,
   getUnassignedMissionTasks,
   getMissionTaskHistory,
@@ -756,9 +757,22 @@ export function startDashboard(botApi?: Api<RawApi>): void {
 
   app.patch('/api/mission/tasks/:id', async (c) => {
     const id = c.req.param('id');
-    const body = await c.req.json<{ assigned_agent?: string }>();
+    const body = await c.req.json<{ assigned_agent?: string; status?: string }>();
+    // Status update (Kanban column move)
+    if (body?.status) {
+      const status = body.status.trim();
+      const allowed = ['queued', 'in_progress', 'completed'] as const;
+      if (!allowed.includes(status as typeof allowed[number])) {
+        return c.json({ error: `status must be one of: ${allowed.join(', ')}` }, 400);
+      }
+      const ok = setMissionTaskStatus(id, status as typeof allowed[number]);
+      if (!ok) return c.json({ error: 'task not found or in a non-transitionable state' }, 409);
+      const task = getMissionTask(id);
+      return c.json({ ok: true, task });
+    }
+    // Agent reassignment
     const newAgent = body?.assigned_agent?.trim();
-    if (!newAgent) return c.json({ error: 'assigned_agent required' }, 400);
+    if (!newAgent) return c.json({ error: 'assigned_agent or status required' }, 400);
     const validAgents = ['main', ...listAgentIds()];
     if (!validAgents.includes(newAgent)) return c.json({ error: 'Unknown agent' }, 400);
     const ok = reassignMissionTask(id, newAgent);

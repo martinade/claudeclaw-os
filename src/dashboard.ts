@@ -1533,6 +1533,34 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     }
   });
 
+  // Command Centre — agent list for the full-page agent chip selector.
+  // Exposes id, name, description, model, and live running status so the
+  // UI can show the status dot without an extra probe.
+  app.get('/api/agents', (c) => {
+    const agents: Array<{ id: string; name: string; description: string; model?: string; running: boolean }> = [];
+    try {
+      const ids = listAgentIds();
+      const allIds = ['main', ...ids.filter((id) => id !== 'main')];
+      for (const id of allIds) {
+        try {
+          const cfg = loadAgentConfig(id);
+          agents.push({
+            id,
+            name: cfg.name || id,
+            description: cfg.description || '',
+            model: cfg.model,
+            running: id === 'main' ? true : isAgentRunning(id),
+          });
+        } catch {
+          agents.push({ id, name: id, description: '', running: false });
+        }
+      }
+    } catch (err) {
+      logger.error({ err: (err as Error).message }, '/api/agents failed');
+    }
+    return c.json({ agents });
+  });
+
   // ── Documents — full feature (Phase 2) ────────────────────────────
   // Built-in templates come from src/document-templates.ts (code-versioned).
   // User-authored templates in document_templates (per-workspace). The list

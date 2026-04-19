@@ -489,6 +489,50 @@ const WARROOM_ENABLED = warroomEnabled;
   .doc-export-btn.pdf { border: 1px solid rgba(var(--status-offline-rgb), 0.4); color: var(--status-offline); }
   .doc-export-btn.docx { border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc; }
   .doc-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Command Centre full page (Phase 3) ─────────────────────────── */
+  /* Layout container the docked chat-overlay slots into when the
+     Command page is active. */
+  .cc-command-page { display: flex; flex-direction: column; gap: 16px; min-height: calc(100vh - 180px); }
+  .cc-command-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; }
+  .cc-cmd-label { font-family: 'Bricolage Grotesque', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; }
+  .cc-cmd-workspace { background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 7px 12px; color: var(--text-primary); font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; min-width: 180px; }
+  .cc-cmd-agents { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; align-items: center; min-width: 0; }
+  .cc-cmd-agent-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--border-subtle); border-radius: 999px; background: transparent; color: var(--text-secondary); font-size: 12px; font-family: 'Bricolage Grotesque', sans-serif; cursor: pointer; transition: all 0.15s; }
+  .cc-cmd-agent-chip:hover { color: var(--text-primary); border-color: var(--border-active); }
+  .cc-cmd-agent-chip.active { color: var(--ws-accent); border-color: var(--ws-accent); background: rgba(var(--ws-accent-rgb), 0.1); font-weight: 600; }
+  .cc-cmd-agent-chip .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--status-offline); }
+  .cc-cmd-agent-chip .dot.live { background: var(--status-online); box-shadow: 0 0 4px rgba(var(--status-online-rgb), 0.6); }
+  .cc-cmd-spacer { flex: 1; min-width: 0; }
+  .cc-cmd-min { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+  .cc-cmd-min:hover { color: var(--accent-gold); border-color: var(--accent-gold); }
+  .cc-cmd-chat-slot { flex: 1; min-height: 480px; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; overflow: hidden; }
+  .cc-cmd-chat-slot:empty::before {
+    content: '';
+    display: block;
+    flex: 1;
+    background: linear-gradient(135deg, rgba(var(--ws-accent-rgb), 0.02), transparent);
+  }
+
+  /* When the Command page is active, dock the chat-overlay INTO the slot
+     instead of rendering it as a fixed slide-over. The overlay reuses ALL
+     its existing JS (sendChatMessage, SSE streaming, agent tabs, etc.) —
+     we're just changing its positioning. */
+  body.cc-command-docked .chat-overlay {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100%;
+    min-height: 520px;
+    transform: none !important;
+    border-left: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex;
+  }
+  body.cc-command-docked .chat-fab { display: none; }
+  /* Hide the close button when docked — use the minimise button instead */
+  body.cc-command-docked .chat-header button[onclick="closeChat()"] { display: none; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -919,6 +963,23 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="ideas-list"></div>
 </section>
 
+<!-- Command Centre — full page (Phase 3) -->
+<section id="command-panel" class="cc-command-page" data-cc-page="command">
+  <div class="cc-command-controls">
+    <span class="cc-cmd-label">Workspace</span>
+    <select class="cc-cmd-workspace" id="cmd-workspace" onchange="ccCmdOnWorkspaceChange(this.value)"></select>
+    <span class="cc-cmd-label" style="margin-left:8px;">Agents</span>
+    <div class="cc-cmd-agents" id="cmd-agents"></div>
+    <div class="cc-cmd-spacer"></div>
+    <button type="button" class="cc-cmd-min" id="cmd-minimise" onclick="ccCmdMinimise()" title="Minimise to slide-over">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="7" x2="12" y2="7" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="cc-cmd-chat-slot" id="cmd-chat-slot">
+    <!-- chat-overlay is relocated into here on page enter -->
+  </div>
+</section>
+
 <!-- Documents — LIST VIEW (saved docs) -->
 <section id="documents-panel" class="mt-5" data-cc-page="documents">
   <div id="doc-list" class="doc-list"></div>
@@ -1173,7 +1234,7 @@ let CC_ACTIVE_SLUG = (new URLSearchParams(location.search).get('b'))
 // The "command" item is special — it opens the chat FAB overlay.
 const CC_NAV_GROUPS = [
   { label: 'CLAUDECLAW', gold: true, items: [
-    { id: 'command', page: null, icon: '🤖', label: 'Command Centre', onClick: "typeof openChat === 'function' && openChat()" },
+    { id: 'command', page: 'command', icon: '🤖', label: 'Command Centre' },
   ]},
   { label: 'WORKSPACE', items: [
     { id: 'dashboard',  page: 'dashboard',  icon: '⚡', label: 'Dashboard' },
@@ -1197,6 +1258,8 @@ const CC_NAV_GROUPS = [
 // - subtitleFn(): returns the live subtitle (e.g. "3 open priorities"). Runs on every page show + after data refresh.
 // - cta: optional { label, handler } for the gold button top-right. handler is a string of JS invoked on click.
 const CC_PAGE_META = {
+  'command':     { title: 'Command Centre', subtitleFn: () => 'Chat with your agents',
+                   cta: { label: '✕ New Chat', handler: "sendQuickAction('/newchat')" } },
   'dashboard':   { title: 'Dashboard',     subtitleFn: () => 'Portfolio overview' },
   'mission':     { title: 'Mission Board', subtitleFn: () => 'Tasks and assignments',
                    cta: { label: '+ New Task',     handler: "ccQuickAddOpen('task')" } },
@@ -4711,6 +4774,123 @@ async function ccRunDailyBrief() {
     btn.textContent = originalLabel;
   }
 }
+
+// ── Command Centre full page (Phase 3) ────────────────────────────
+// The Command page "docks" the existing chat-overlay into its main slot
+// by relocating the DOM node + flipping a body class. When the page is
+// inactive, the overlay returns to its original fixed slide-over mode.
+//
+// Minimise:
+//   - Leaving the Command page via any nav click goes back to previous page
+//     (stored in CC_PREV_PAGE before entering command).
+//   - Clicking the minimise icon does the same transition AND opens the
+//     chat-overlay (slide-over) immediately as a shortcut.
+//   - FAB reappears once the user is off the Command page.
+
+let CC_PREV_PAGE = 'dashboard';
+let CC_CMD_SELECTED_AGENT = 'main';
+let CC_CMD_AGENTS = [];
+
+async function ccCmdLoadAgents() {
+  try {
+    const r = await fetch('/api/agents');
+    if (!r.ok) return;
+    const data = await r.json();
+    CC_CMD_AGENTS = (data.agents || []);
+  } catch (err) { console.warn('ccCmdLoadAgents failed', err); }
+}
+
+function ccCmdRenderAgents() {
+  const host = document.getElementById('cmd-agents');
+  if (!host) return;
+  const fallback = (CC_CMD_AGENTS.length === 0) ? [{ id: 'main', name: 'Main', running: true }] : CC_CMD_AGENTS;
+  host.innerHTML = fallback.map((a) => {
+    const active = a.id === CC_CMD_SELECTED_AGENT ? ' active' : '';
+    const live = a.running ? ' live' : '';
+    return '<button type="button" class="cc-cmd-agent-chip' + active + '" data-agent="' + ccEscapeHtml(a.id) + '" onclick="ccCmdSelectAgent(\\'' + a.id + '\\')" title="' + ccEscapeHtml(a.description || a.id) + '">' +
+      '<span class="dot' + live + '"></span>' + ccEscapeHtml(a.name || a.id) + '</button>';
+  }).join('');
+}
+
+function ccCmdSelectAgent(agentId) {
+  CC_CMD_SELECTED_AGENT = agentId;
+  ccCmdRenderAgents();
+  // Sync with the chat-overlay's agent tabs if it has a switcher.
+  if (typeof setActiveAgentTab === 'function') {
+    try { setActiveAgentTab(agentId); } catch {}
+  }
+  const tabs = document.querySelectorAll('.chat-agent-tab');
+  tabs.forEach((t) => { if (t.dataset && t.dataset.agent === agentId) t.click(); });
+}
+
+function ccCmdRenderWorkspaceOptions() {
+  const sel = document.getElementById('cmd-workspace');
+  if (!sel) return;
+  const opts = Array.from(CC_WORKSPACES.values()).map((w) => {
+    const selected = w.slug === CC_ACTIVE_SLUG ? ' selected' : '';
+    return '<option value="' + ccEscapeHtml(w.slug) + '"' + selected + '>' + ccEscapeHtml(w.icon_emoji + ' ' + w.name) + '</option>';
+  }).join('');
+  sel.innerHTML = opts;
+}
+
+function ccCmdOnWorkspaceChange(slug) {
+  ccSetWorkspace(slug);
+}
+
+function ccCmdDock() {
+  const overlay = document.getElementById('chat-overlay');
+  const slot = document.getElementById('cmd-chat-slot');
+  if (!overlay || !slot) return;
+  if (overlay.parentElement === slot) return;
+  slot.appendChild(overlay);
+  overlay.classList.add('open');
+  document.body.classList.add('cc-command-docked');
+  // Ensure chat data loaded
+  if (typeof loadChatSession === 'function') { try { loadChatSession(); } catch {} }
+  if (typeof loadChatMessages === 'function') { try { loadChatMessages(); } catch {} }
+}
+
+function ccCmdUndock() {
+  const overlay = document.getElementById('chat-overlay');
+  if (!overlay) return;
+  if (document.body.classList.contains('cc-command-docked')) {
+    document.body.classList.remove('cc-command-docked');
+  }
+  // Return overlay to body so its fixed positioning works again.
+  if (overlay.parentElement !== document.body) {
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.remove('open');
+}
+
+function ccCmdMinimise() {
+  ccCmdUndock();
+  ccShowPage(CC_PREV_PAGE && CC_PREV_PAGE !== 'command' ? CC_PREV_PAGE : 'dashboard');
+  // Open slide-over as a one-click shortcut after minimising.
+  if (typeof openChat === 'function') { try { openChat(); } catch {} }
+}
+
+// Hook into ccShowPage: track prev page, dock/undock on enter/leave.
+const _ccShowPage_origForCommand = ccShowPage;
+ccShowPage = function(pageId) {
+  const leaving = CC_ACTIVE_PAGE;
+  if (leaving === 'command' && pageId !== 'command') {
+    ccCmdUndock();
+  }
+  if (leaving !== 'command' && pageId === 'command') {
+    CC_PREV_PAGE = leaving;
+  }
+  _ccShowPage_origForCommand(pageId);
+  if (pageId === 'command') {
+    // Populate + dock AFTER the page is shown so the slot is visible.
+    (async () => {
+      await ccCmdLoadAgents();
+      ccCmdRenderWorkspaceOptions();
+      ccCmdRenderAgents();
+      ccCmdDock();
+    })();
+  }
+};
 
 // Initial workspace-panel load once workspaces finish loading
 document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshWorkspacePanels, 300); });

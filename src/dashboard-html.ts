@@ -4022,9 +4022,9 @@ async function ccLoadInbox() {
     list.innerHTML = items.map(it => {
       let tags = [];
       try { tags = JSON.parse(it.tags_json || '[]'); } catch {}
-      const [firstLine, ...restLines] = (it.summary || it.raw_text || '').split('\n');
+      const [firstLine, ...restLines] = (it.summary || it.raw_text || '').split('\\n');
       const title = firstLine.slice(0, 120) || '(no title)';
-      const body = restLines.join('\n').trim().slice(0, 400);
+      const body = restLines.join('\\n').trim().slice(0, 400);
       const urlLink = it.source_url ? '<a class="inbox-card-link" href="' + ccEscapeHtml(it.source_url) + '" target="_blank" rel="noopener">' + ccEscapeHtml(new URL(it.source_url).hostname) + '</a>' : '';
       const date = new Date(it.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const readCls = it.status !== 'unread' ? ' read' : '';
@@ -4071,9 +4071,9 @@ async function ccInboxAction(id, action) {
   const data = await r.json();
   const item = (data.items || []).find(i => i.id === id);
   if (!item) return;
-  const titleLine = (item.summary || item.raw_text || '').split('\n')[0].slice(0, 80) || 'From inbox';
+  const titleLine = (item.summary || item.raw_text || '').split('\\n')[0].slice(0, 80) || 'From inbox';
   if (action === 'task') {
-    await fetch('/api/mission/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: titleLine, prompt: (item.summary || item.raw_text || '') + (item.source_url ? '\n\nSource: ' + item.source_url : '') }) });
+    await fetch('/api/mission/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: titleLine, prompt: (item.summary || item.raw_text || '') + (item.source_url ? '\\n\\nSource: ' + item.source_url : '') }) });
     if (typeof loadMissionBoard === 'function') loadMissionBoard();
   } else if (action === 'note') {
     const key = titleLine.replace(/[^a-z0-9]+/gi, '_').toLowerCase().slice(0, 40) || 'intel_' + id;
@@ -4105,7 +4105,7 @@ async function ccRunDailyBrief() {
     if (!r.ok) {
       preview.textContent = 'Error: ' + (data.error || r.status);
     } else {
-      const header = (data.sent ? '✅ Delivered to Telegram' : '⚠️ Generated but not delivered') + '\n\n';
+      const header = (data.sent ? '✅ Delivered to Telegram' : '⚠️ Generated but not delivered') + '\\n\\n';
       preview.textContent = header + (data.preview || '(empty)');
     }
   } catch (err) {

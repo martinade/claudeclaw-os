@@ -746,14 +746,15 @@ function runMigrations(database: Database.Database): void {
     }
   }
 
-  // Seed the cross-business workspace and the four known businesses.
-  // idempotent via INSERT OR IGNORE on the UNIQUE slug.
+  // Seed the cross-business workspace and the known businesses.
+  // Idempotent via INSERT OR IGNORE on the UNIQUE slug — safe to re-run on every boot.
   const seeds: Array<[string, string, string, string, string, number]> = [
-    ['cross-business', 'cross-business', 'Cross-Business', '🌐', '#64748b', 1],
-    ['biz_a',  'workspace-a',       'Concierge',       '📁', '#D4AF37', 0],
-    ['biz_b',     'workspace-b',  'Workspace B',  '📁', '#8B0000', 0],
-    ['biz_c',      'workspace-c',           'Workspace C',           '📁', '#00D4AA', 0],
-    ['biz_personal',   'personal',        'Personal',        '🏠', '#6366f1', 0],
+    ['cross-business',  'cross-business',  'Cross-Business',  '🌐', '#64748b', 1],
+    ['biz_a',   'workspace-a',       'Workspace A',   '📁', '#D4AF37', 0],
+    ['biz_b',      'workspace-b',  'Workspace B',  '📁', '#8B0000', 0],
+    ['biz_c',       'workspace-c',           'Workspace C',    '📁', '#00D4AA', 0],
+    ['biz_d', 'workspace-d',     'Workspace D',     '📁', '#00FDFF', 0],
+    ['biz_personal',    'personal',        'Personal',        '🏠', '#6366f1', 0],
   ];
   const seedStmt = database.prepare(
     'INSERT OR IGNORE INTO businesses (id, slug, name, icon_emoji, color_hex, is_global, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -761,6 +762,20 @@ function runMigrations(database: Database.Database): void {
   const now = Math.floor(Date.now() / 1000);
   for (const [id, slug, name, icon, color, isGlobal] of seeds) {
     seedStmt.run(id, slug, name, icon, color, isGlobal, now);
+  }
+
+  // Rename legacy seeded businesses to their current canonical display names.
+  // The UPDATE is idempotent — the `name <> ?` guard means subsequent boots are a no-op.
+  // Slugs are NOT renamed so existing URLs and workspace-scoped data keep working.
+  const renames: Array<[string, string]> = [
+    ['workspace-a', 'Workspace A'],
+    ['workspace-c',     'Workspace C'],
+  ];
+  const renameStmt = database.prepare(
+    'UPDATE businesses SET name = ? WHERE slug = ? AND name <> ?',
+  );
+  for (const [slug, name] of renames) {
+    renameStmt.run(name, slug, name);
   }
 }
 

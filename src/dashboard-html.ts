@@ -441,6 +441,34 @@ const WARROOM_ENABLED = warroomEnabled;
   .inbox-importance.reference { background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); }
   .inbox-category { font-size: 10px; padding: 1px 7px; border-radius: 3px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-subtle); }
 
+  /* ── Phase 4c: Daily Brief six-card grid ─────────────────────── */
+  .brief-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; }
+  .brief-top-meta { display: flex; flex-direction: column; gap: 3px; }
+  .brief-top-date { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+  .brief-top-sub { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .brief-top-actions { display: flex; gap: 8px; }
+  .brief-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .brief-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
+  .brief-card-head { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
+  .brief-card-icon { font-size: 14px; }
+  .brief-card-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+  .brief-card-count { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .brief-item { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text-primary); line-height: 1.45; }
+  .brief-item-time { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ws-accent); font-weight: 600; min-width: 48px; flex-shrink: 0; }
+  .brief-item-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+  .brief-item-dot.online { background: var(--status-online); box-shadow: 0 0 4px rgba(var(--status-online-rgb), 0.5); }
+  .brief-item-dot.offline { background: var(--status-offline); }
+  .brief-item-text { flex: 1; word-break: break-word; }
+  .brief-item-sub { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .brief-empty { font-size: 12px; color: var(--text-muted); font-style: italic; padding: 8px 0; }
+  .brief-revenue-total { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 700; color: var(--accent-gold); line-height: 1.1; }
+  .brief-revenue-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .brief-cron-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+  .brief-cron-key { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .brief-cron-val { color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
+  .brief-send-cta { padding: 9px 18px; background: var(--accent-gold); color: var(--bg-primary); border: none; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .brief-send-cta:disabled { opacity: 0.55; cursor: not-allowed; }
+
   /* ── Documents (Phase 2, OC MC parity) ─────────────────────────── */
   .doc-list { display: flex; flex-direction: column; gap: 6px; }
   .doc-empty { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 48px; text-align: center; }
@@ -1165,16 +1193,22 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="inbox-list" class="inbox-grid"></div>
 </section>
 
-<!-- Phase 5: Daily Brief -->
-<section id="daily-brief-panel" class="glass-card ws-panel mt-5" data-cc-page="daily-brief" style="min-height:120px;">
-  <div class="ws-panel-header">
-    <div>
-      <div class="ws-panel-title">Daily Brief</div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Chief-of-staff summary delivered to Telegram. Default schedule: 7am CR.</div>
+<!-- Phase 4c: Daily Brief — six-card grid matching OC MC -->
+<section data-cc-page="daily-brief" class="mt-2">
+  <div class="brief-top">
+    <div class="brief-top-meta">
+      <div class="brief-top-date" id="brief-date">Today</div>
+      <div class="brief-top-sub" id="brief-last-sent">Last sent: never</div>
     </div>
-    <button class="ws-panel-add" onclick="ccRunDailyBrief()" id="brief-run-btn">Send Now</button>
+    <div class="brief-top-actions">
+      <button class="brief-send-cta" id="brief-run-btn" onclick="ccRunDailyBrief()">📨 Send Now</button>
+    </div>
   </div>
-  <div id="brief-preview" style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;max-height:240px;overflow-y:auto;">No brief sent yet from the dashboard. Click "Send Now" to preview + deliver for the current workspace.</div>
+  <div class="brief-grid" id="brief-grid"></div>
+  <div id="brief-preview-block" style="margin-top:14px;display:none;">
+    <div class="ws-panel-title" style="margin-bottom:6px;">Last generated summary</div>
+    <div id="brief-preview" style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.55;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;max-height:280px;overflow-y:auto;"></div>
+  </div>
 </section>
 
 <!-- Phase 3: Core Memory (Tier 1 — pinned facts) -->
@@ -4999,12 +5033,13 @@ async function ccDocExport(kind) {
   }
 }
 
-// Chain documents + ideas into refresh cycle
+// Chain documents + ideas + daily brief into refresh cycle
 const _origRefreshPanels_docs = refreshWorkspacePanels;
 refreshWorkspacePanels = async function() {
   await _origRefreshPanels_docs();
   await ccLoadDocuments();
   await ccLoadIdeas();
+  await ccLoadDailyBrief();
 };
 
 // ── Phase 4b: Intel Pipeline ────────────────────────────────────────
@@ -5171,25 +5206,126 @@ refreshWorkspacePanels = async function() {
   await ccLoadInbox();
 };
 
-// ── Phase 5: Daily Brief ───────────────────────────────────────────
+// ── Phase 4c: Daily Brief six-card grid ─────────────────────────────
+async function ccLoadDailyBrief() {
+  const grid = document.getElementById('brief-grid');
+  if (!grid) return;
+  try {
+    const r = await fetch('/api/daily-brief/preview');
+    if (!r.ok) { grid.innerHTML = '<div class="brief-empty" style="grid-column:1/-1;">Preview failed.</div>'; return; }
+    const data = await r.json();
+    ccRenderDailyBrief(data);
+  } catch (err) {
+    grid.innerHTML = '<div class="brief-empty" style="grid-column:1/-1;">Preview failed: ' + ccEscapeHtml(String(err)) + '</div>';
+  }
+}
+
+function ccRenderDailyBrief(data) {
+  const grid = document.getElementById('brief-grid');
+  const dateEl = document.getElementById('brief-date');
+  const lastEl = document.getElementById('brief-last-sent');
+  if (dateEl && data.today) {
+    const d = new Date(data.today + 'T00:00:00');
+    dateEl.textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  if (lastEl && data.cron) {
+    if (data.cron.last_sent) {
+      const ts = new Date(data.cron.last_sent * 1000);
+      lastEl.textContent = 'Last sent: ' + ts.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } else {
+      lastEl.textContent = 'Last sent: never';
+    }
+  }
+  if (!grid) return;
+
+  const schedule = (data.schedule || []).slice(0, 8);
+  const priorities = (data.priorities || []).slice(0, 8);
+  const missions = (data.missions || []).slice(0, 8);
+  const agents = (data.agents || []);
+
+  const scheduleItems = schedule.length === 0
+    ? '<div class="brief-empty">No events or scheduled tasks today.</div>'
+    : schedule.map((s) =>
+        '<div class="brief-item"><span class="brief-item-time">' + ccEscapeHtml(s.time) + '</span><span class="brief-item-text">' + ccEscapeHtml(s.title) + '</span></div>'
+      ).join('');
+
+  const priorityItems = priorities.length === 0
+    ? '<div class="brief-empty">No open priorities. Set one in Priorities.</div>'
+    : priorities.map((p) =>
+        '<div class="brief-item"><span class="brief-item-time">•</span><span class="brief-item-text">' + ccEscapeHtml(p.text) + '</span></div>'
+      ).join('');
+
+  const missionItems = missions.length === 0
+    ? '<div class="brief-empty">No open mission tasks.</div>'
+    : missions.map((m) => {
+        const age = Math.max(0, Math.round((Date.now() / 1000 - m.created_at) / 3600));
+        const ageLabel = age < 24 ? (age + 'h') : (Math.round(age / 24) + 'd');
+        return '<div class="brief-item"><span class="brief-item-time">' + ccEscapeHtml(ageLabel) + '</span><span class="brief-item-text">' + ccEscapeHtml(m.title) + '<div class="brief-item-sub">' + ccEscapeHtml(m.status) + '</div></span></div>';
+      }).join('');
+
+  // Revenue card — V1 placeholder until revenue_snapshots table lands.
+  const revenueCard =
+    '<div class="brief-revenue-total">—</div>' +
+    '<div class="brief-revenue-label">Revenue tracking not wired yet</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.5;">Drop numbers into the docs (Invoice template) or create a revenue_snapshots table in a follow-up. This card surfaces MTD totals when data flows.</div>';
+
+  const agentItems = agents.length === 0
+    ? '<div class="brief-empty">No agents registered.</div>'
+    : agents.map((a) => {
+        const dotCls = a.running ? 'online' : 'offline';
+        const modelTag = a.model ? ('<div class="brief-item-sub">' + ccEscapeHtml(a.model) + '</div>') : '';
+        return '<div class="brief-item"><span class="brief-item-dot ' + dotCls + '"></span><span class="brief-item-text">' + ccEscapeHtml(a.name) + modelTag + '</span></div>';
+      }).join('');
+
+  const cron = data.cron || {};
+  const cronExpr = ccEscapeHtml(cron.expr || '0 7 * * *');
+  const cronLast = cron.last_sent
+    ? new Date(cron.last_sent * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'never';
+  const cronCard =
+    '<div class="brief-cron-row"><span class="brief-cron-key">Cron</span><span class="brief-cron-val">' + cronExpr + '</span></div>' +
+    '<div class="brief-cron-row"><span class="brief-cron-key">Timezone</span><span class="brief-cron-val">America/Costa_Rica</span></div>' +
+    '<div class="brief-cron-row"><span class="brief-cron-key">Last sent</span><span class="brief-cron-val">' + ccEscapeHtml(cronLast) + '</span></div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Per-workspace override in businesses.daily_brief_cron.</div>';
+
+  grid.innerHTML = [
+    ['📅', "Today's Schedule", schedule.length, scheduleItems],
+    ['🎯', 'Open Priorities',   priorities.length, priorityItems],
+    ['📋', 'Open Mission Tasks', missions.length, missionItems],
+    ['💰', 'Revenue · MTD',     '',       revenueCard],
+    ['🤖', 'Agent Status',      agents.length, agentItems],
+    ['⏰', 'Cron Schedule',     '',       cronCard],
+  ].map(([icon, title, count, body]) =>
+    '<div class="brief-card">' +
+      '<div class="brief-card-head"><span class="brief-card-icon">' + icon + '</span><span class="brief-card-title">' + title + '</span>' +
+      (count !== '' ? '<span class="brief-card-count">' + ccEscapeHtml(String(count)) + '</span>' : '') +
+      '</div>' +
+      '<div>' + body + '</div>' +
+    '</div>'
+  ).join('');
+}
+
 async function ccRunDailyBrief() {
   const btn = document.getElementById('brief-run-btn');
+  const previewBlock = document.getElementById('brief-preview-block');
   const preview = document.getElementById('brief-preview');
-  if (!btn || !preview) return;
+  if (!btn) return;
   btn.disabled = true;
   const originalLabel = btn.textContent;
-  btn.textContent = 'Running…';
+  btn.textContent = '⏳ Running…';
   try {
     const r = await fetch('/api/daily-brief/run', { method: 'POST' });
     const data = await r.json();
+    if (previewBlock) previewBlock.style.display = '';
     if (!r.ok) {
-      preview.textContent = 'Error: ' + (data.error || r.status);
+      if (preview) preview.textContent = 'Error: ' + (data.error || r.status);
     } else {
       const header = (data.sent ? '✅ Delivered to Telegram' : '⚠️ Generated but not delivered') + '\\n\\n';
-      preview.textContent = header + (data.preview || '(empty)');
+      if (preview) preview.textContent = header + (data.preview || '(empty)');
     }
+    await ccLoadDailyBrief();
   } catch (err) {
-    preview.textContent = 'Failed: ' + (err && err.message || err);
+    if (preview) preview.textContent = 'Failed: ' + (err && err.message || err);
   } finally {
     btn.disabled = false;
     btn.textContent = originalLabel;

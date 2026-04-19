@@ -1522,6 +1522,98 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ ok: true });
   });
 
+  // Daily Brief — structured preview data (six-card grid on the dashboard).
+  // Unlike /run (which generates + sends the LLM-summarised brief to
+  // Telegram), /preview only aggregates facts — safe to poll cheaply.
+  app.get('/api/daily-brief/preview', async (c) => {
+    const slug = getBizSlug(c);
+    const biz = resolveSlug(slug);
+    if (!biz) return c.json({ error: 'workspace not found' }, 404);
+    const bizId = biz.is_global ? null : biz.id;
+    const { listPriorities, listCalendarEvents } = await import('./workspace-db.js');
+    const { getDb } = await import('./db.js');
+    const { CronExpressionParser } = await import('cron-parser');
+
+    const now = Math.floor(Date.now() / 1000);
+    const startOfDay = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return Math.floor(d.getTime() / 1000); })();
+    const endOfDay = startOfDay + 86400;
+
+    const priorities = listPriorities(bizId, { includeDone: false }).slice(0, 8);
+
+    const db = getDb();
+    const bizFilter = biz.is_global ? '' : " AND (business_id = '" + bizId + "' OR business_id IS NULL)";
+    const openMissions = db.prepare(
+      `SELECT id, title, status, created_at FROM mission_tasks
+       WHERE status IN ('queued','in_progress')${bizFilter}
+       ORDER BY created_at DESC LIMIT 6`,
+    ).all() as Array<{ id: string; title: string; status: string; created_at: number }>;
+
+    // Scheduled jobs firing today (cron expansion inside today's window)
+    const scheduledTasks = db.prepare(
+      `SELECT id, prompt, schedule FROM scheduled_tasks WHERE status = 'active'${bizFilter}`,
+    ).all() as Array<{ id: string; prompt: string; schedule: string }>;
+    const todaySchedule: Array<{ time: string; title: string; source: string }> = [];
+    const startDate = new Date(startOfDay * 1000);
+    const endDate = new Date(endOfDay * 1000);
+    for (const t of scheduledTasks) {
+      try {
+        const interval = CronExpressionParser.parse(t.schedule, { currentDate: startDate });
+        let safety = 40;
+        while (safety-- > 0) {
+          const next = interval.next().toDate();
+          if (next >= endDate) break;
+          const hh = String(next.getHours()).padStart(2, '0');
+          const mm = String(next.getMinutes()).padStart(2, '0');
+          todaySchedule.push({ time: `${hh}:${mm}`, title: t.prompt.slice(0, 80), source: 'cron' });
+        }
+      } catch { /* ignore bad cron */ }
+    }
+    // User-created calendar events today
+    const events = listCalendarEvents(bizId, { fromTs: startOfDay, toTs: endOfDay });
+    for (const ev of events) {
+      const d = new Date(ev.start_time * 1000);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      todaySchedule.push({ time: `${hh}:${mm}`, title: ev.title.slice(0, 80), source: ev.event_type });
+    }
+    todaySchedule.sort((a, b) => a.time.localeCompare(b.time));
+
+    // Agent status
+    let agentStatus: Array<{ id: string; name: string; running: boolean; model?: string }> = [];
+    try {
+      const ids = listAgentIds();
+      const allIds = ['main', ...ids.filter((id) => id !== 'main')];
+      for (const id of allIds) {
+        try {
+          const cfg = loadAgentConfig(id);
+          agentStatus.push({
+            id,
+            name: cfg.name || id,
+            running: id === 'main' ? true : isAgentRunning(id),
+            model: cfg.model,
+          });
+        } catch {
+          agentStatus.push({ id, name: id, running: false });
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Last-sent timestamp for this workspace (per hive_mind audit entry)
+    const lastSentRow = db.prepare(
+      `SELECT MAX(created_at) AS ts FROM hive_mind WHERE action = 'daily_brief'${bizFilter}`,
+    ).get() as { ts: number | null };
+
+    return c.json({
+      workspace: { slug: biz.slug, name: biz.name, icon: biz.icon_emoji, color: biz.color_hex },
+      today: new Date(now * 1000).toISOString().slice(0, 10),
+      schedule: todaySchedule,
+      priorities,
+      missions: openMissions,
+      agents: agentStatus,
+      cron: { expr: biz.daily_brief_cron, last_sent: lastSentRow?.ts ?? null },
+    });
+  });
+
   // Daily Brief — manual trigger for the active workspace
   app.post('/api/daily-brief/run', async (c) => {
     const slug = getBizSlug(c);

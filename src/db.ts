@@ -727,6 +727,30 @@ function runMigrations(database: Database.Database): void {
     logger.info('Migration: added provider column to meet_sessions');
   }
 
+  // Mission Control V1 Phase 2: extend documents table to match OC MC shape.
+  // Nullable columns so existing rendered-document rows keep working.
+  const docCols = database.prepare(`PRAGMA table_info(documents)`).all() as Array<{ name: string }>;
+  if (docCols.length > 0) {
+    if (!docCols.some((c) => c.name === 'type')) {
+      database.exec(`ALTER TABLE documents ADD COLUMN type TEXT`);
+    }
+    if (!docCols.some((c) => c.name === 'status')) {
+      database.exec(`ALTER TABLE documents ADD COLUMN status TEXT NOT NULL DEFAULT 'draft'`);
+    }
+    if (!docCols.some((c) => c.name === 'variables_json')) {
+      database.exec(`ALTER TABLE documents ADD COLUMN variables_json TEXT NOT NULL DEFAULT '[]'`);
+    }
+    if (!docCols.some((c) => c.name === 'template_key')) {
+      database.exec(`ALTER TABLE documents ADD COLUMN template_key TEXT`);
+    }
+    if (!docCols.some((c) => c.name === 'updated_at')) {
+      database.exec(`ALTER TABLE documents ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`);
+      // Backfill updated_at = created_at for existing rows (one-time)
+      database.exec(`UPDATE documents SET updated_at = created_at WHERE updated_at = 0`);
+      database.exec(`CREATE INDEX IF NOT EXISTS idx_documents_updated ON documents(business_id, updated_at DESC)`);
+    }
+  }
+
   // Mission Control V1: workspace-per-business. Add nullable business_id to
   // tables that carry per-workspace data. NULL = cross-business / legacy rows.
   const tablesNeedingBiz = [

@@ -93,9 +93,14 @@ export interface DocumentRow {
   id: number;
   business_id: string | null;
   template_id: number | null;
+  template_key: string | null;
+  type: string | null;
   title: string;
   content_md: string;
+  status: string;
+  variables_json: string;
   created_at: number;
+  updated_at: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -470,8 +475,112 @@ export function saveRenderedDocument(
   db?: Database.Database,
 ): DocumentRow {
   const d = resolveDb(db);
+  const now = Math.floor(Date.now() / 1000);
   const res = d.prepare(
-    'INSERT INTO documents (business_id, template_id, title, content_md) VALUES (?, ?, ?, ?)',
-  ).run(input.business_id, input.template_id, input.title, input.content_md);
+    `INSERT INTO documents (business_id, template_id, title, content_md, updated_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(input.business_id, input.template_id, input.title, input.content_md, now);
   return d.prepare('SELECT * FROM documents WHERE id = ?').get(res.lastInsertRowid) as DocumentRow;
+}
+
+// ── Full document CRUD (Phase 2) ────────────────────────────────────
+
+export interface DocumentCreateInput {
+  business_id: string | null;
+  title: string;
+  content_md: string;
+  type?: string | null;
+  status?: string;
+  template_id?: number | null;
+  template_key?: string | null;
+  variables?: Record<string, string> | null;
+}
+
+export interface DocumentUpdateInput {
+  title?: string;
+  content_md?: string;
+  type?: string | null;
+  status?: string;
+  template_id?: number | null;
+  template_key?: string | null;
+  variables?: Record<string, string> | null;
+  business_id?: string | null;
+}
+
+export function listDocuments(
+  businessId: string | null,
+  opts: { type?: string; status?: string; limit?: number } = {},
+  db?: Database.Database,
+): DocumentRow[] {
+  const d = resolveDb(db);
+  const where: string[] = ['business_id IS ?'];
+  const params: unknown[] = [businessId];
+  if (opts.type) { where.push('type = ?'); params.push(opts.type); }
+  if (opts.status) { where.push('status = ?'); params.push(opts.status); }
+  const limit = Math.max(1, Math.min(500, opts.limit ?? 100));
+  const sql = `SELECT * FROM documents WHERE ${where.join(' AND ')} ORDER BY updated_at DESC LIMIT ${limit}`;
+  return d.prepare(sql).all(...params) as DocumentRow[];
+}
+
+export function getDocument(id: number, db?: Database.Database): DocumentRow | null {
+  const d = resolveDb(db);
+  return (d.prepare('SELECT * FROM documents WHERE id = ?').get(id) as DocumentRow | undefined) ?? null;
+}
+
+export function createDocument(input: DocumentCreateInput, db?: Database.Database): DocumentRow {
+  const d = resolveDb(db);
+  const now = Math.floor(Date.now() / 1000);
+  const res = d.prepare(
+    `INSERT INTO documents (business_id, template_id, template_key, type, title, content_md, status, variables_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    input.business_id,
+    input.template_id ?? null,
+    input.template_key ?? null,
+    input.type ?? null,
+    input.title,
+    input.content_md,
+    input.status ?? 'draft',
+    JSON.stringify(input.variables ?? {}),
+    now,
+    now,
+  );
+  return getDocument(Number(res.lastInsertRowid), d)!;
+}
+
+export function updateDocument(id: number, patch: DocumentUpdateInput, db?: Database.Database): DocumentRow | null {
+  const d = resolveDb(db);
+  const existing = getDocument(id, d);
+  if (!existing) return null;
+  const cols: string[] = [];
+  const values: unknown[] = [];
+  const map: Array<[keyof DocumentUpdateInput, string, (v: unknown) => unknown]> = [
+    ['title',         'title',          (v) => v],
+    ['content_md',    'content_md',     (v) => v],
+    ['type',          'type',           (v) => v],
+    ['status',        'status',         (v) => v],
+    ['template_id',   'template_id',    (v) => v],
+    ['template_key',  'template_key',   (v) => v],
+    ['business_id',   'business_id',    (v) => v],
+    ['variables',     'variables_json', (v) => JSON.stringify(v ?? {})],
+  ];
+  for (const [key, col, xform] of map) {
+    if (patch[key] !== undefined) { cols.push(`${col} = ?`); values.push(xform(patch[key])); }
+  }
+  if (cols.length === 0) return existing;
+  const now = Math.floor(Date.now() / 1000);
+  cols.push('updated_at = ?');
+  values.push(now);
+  d.prepare(`UPDATE documents SET ${cols.join(', ')} WHERE id = ?`).run(...values, id);
+  return getDocument(id, d);
+}
+
+export function deleteDocument(id: number, db?: Database.Database): void {
+  resolveDb(db).prepare('DELETE FROM documents WHERE id = ?').run(id);
+}
+
+export function countDocuments(businessId: string | null, db?: Database.Database): number {
+  const d = resolveDb(db);
+  const row = d.prepare('SELECT COUNT(*) AS n FROM documents WHERE business_id IS ?').get(businessId) as { n: number };
+  return row.n;
 }

@@ -386,30 +386,109 @@ const WARROOM_ENABLED = warroomEnabled;
   .inbox-add-form input:focus { border-color: var(--ws-accent); outline: none; }
   .inbox-add-form button { background: var(--ws-accent); color: #000; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 
-  /* ── Phase 8: Documents ────────────────────────────────────────── */
-  .doc-list { display: flex; flex-direction: column; gap: 8px; }
-  .doc-row { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 8px; }
-  .doc-row-name { flex: 1; font-weight: 600; font-size: 13px; color: var(--text-primary); }
-  .doc-row-type { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); padding: 2px 6px; border: 1px solid var(--border-subtle); border-radius: 4px; }
-  .doc-row-btn { padding: 4px 10px; background: var(--ws-accent); color: #000; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
-  .doc-create { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .doc-create input { flex: 1; min-width: 200px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
-  .doc-create button { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
-  .doc-create button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
-  .doc-editor-overlay { position: fixed; inset: 0; background: var(--bg-overlay); z-index: 80; display: none; align-items: center; justify-content: center; padding: 16px; }
-  .doc-editor-overlay.open { display: flex; }
-  .doc-editor { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 16px; max-width: 720px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; animation: modal-enter 200ms ease-out; }
-  .doc-editor-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); }
-  .doc-editor-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 600; color: var(--text-primary); }
-  .doc-editor-body { padding: 16px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-  .doc-editor-body input, .doc-editor-body textarea { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
-  .doc-editor-body input:focus, .doc-editor-body textarea:focus { border-color: var(--ws-accent); outline: none; }
-  .doc-editor-body textarea { min-height: 240px; resize: vertical; }
-  .doc-editor-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border-subtle); }
-  .doc-editor-footer button { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
-  .doc-editor-footer .cancel { background: transparent; color: var(--text-secondary); }
-  .doc-editor-footer .primary { background: var(--ws-accent); color: #000; }
-  .doc-hint { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  /* ── Documents (Phase 2, OC MC parity) ─────────────────────────── */
+  .doc-list { display: flex; flex-direction: column; gap: 6px; }
+  .doc-empty { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 48px; text-align: center; }
+  .doc-empty-icon { font-size: 32px; margin-bottom: 12px; }
+  .doc-empty-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+  .doc-empty-body { font-size: 13px; color: var(--text-muted); }
+  .doc-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-left: 3px solid var(--ws-accent); border-radius: 4px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .doc-row:hover { background: var(--bg-card-hover); border-color: var(--border-active); border-left-color: var(--ws-accent); }
+  .doc-row-main { flex: 1; min-width: 0; }
+  .doc-row-title-line { display: flex; gap: 8px; margin-bottom: 4px; align-items: center; flex-wrap: wrap; }
+  .doc-row-name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
+  .doc-row-badge { font-size: 10px; padding: 1px 7px; border-radius: 3px; flex-shrink: 0; font-weight: 600; }
+  .doc-row-badge.biz { border: 1px solid rgba(var(--ws-accent-rgb), 0.4); background: rgba(var(--ws-accent-rgb), 0.1); color: var(--ws-accent); }
+  .doc-row-badge.type { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+  .doc-row-badge.status-draft { color: var(--text-muted); background: transparent; border: 1px solid var(--border-subtle); }
+  .doc-row-badge.status-final { color: var(--status-online); background: rgba(var(--status-online-rgb), 0.1); border: 1px solid rgba(var(--status-online-rgb), 0.35); }
+  .doc-row-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .doc-row-delete { border: 1px solid var(--border-subtle); background: transparent; color: var(--text-muted); border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+  .doc-row-delete:hover { border-color: var(--status-offline); color: var(--status-offline); }
+
+  /* Editor page */
+  .doc-editor-page { display: flex; flex-direction: column; min-height: calc(100vh - 140px); background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; overflow: hidden; }
+  .doc-editor-toolbar { display: flex; gap: 10px; align-items: center; padding: 14px 16px; background: var(--bg-void); border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; }
+  .doc-mode-row { display: flex; gap: 4px; }
+  .doc-mode-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); transition: all 0.15s; }
+  .doc-mode-btn.active { border-color: var(--accent-gold); background: rgba(var(--accent-gold-rgb), 0.08); color: var(--accent-gold); font-weight: 600; }
+  .doc-title-input { flex: 1; min-width: 200px; background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; }
+  .doc-title-input:focus { border-color: var(--accent-gold); outline: none; }
+  .doc-biz-select { background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; min-width: 160px; }
+  .doc-back-btn { background: transparent; border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px 14px; color: var(--text-secondary); font-size: 12px; cursor: pointer; font-family: inherit; }
+  .doc-back-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
+
+  .doc-editor-stage { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 400px; }
+
+  /* Template picker */
+  .doc-tpl-wrap { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .doc-cat-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .doc-cat-tab { padding: 5px 14px; border-radius: 3px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 11px; font-weight: 400; cursor: pointer; transition: all 0.12s; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+  .doc-cat-tab.active { font-weight: 600; }
+  .doc-tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .doc-tpl-card { border-top: 3px solid var(--ws-accent); border-right: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); border-left: 1px solid var(--border-subtle); border-radius: 4px; padding: 14px 16px; background: var(--bg-card); text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .doc-tpl-card:hover { background: var(--bg-card-hover); }
+  .doc-tpl-card-label { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+  .doc-tpl-card-desc { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
+  .doc-tpl-card-meta { margin-top: 8px; font-size: 10px; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+
+  /* Variable form */
+  .doc-var-wrap { padding: 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .doc-var-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .doc-var-label { font-family: 'Bricolage Grotesque', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 4px; display: block; }
+  .doc-var-label .req { color: var(--status-offline); margin-left: 4px; }
+  .doc-var-input, .doc-var-textarea, .doc-var-select { background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; width: 100%; box-sizing: border-box; }
+  .doc-var-input:focus, .doc-var-textarea:focus, .doc-var-select:focus { border-color: var(--accent-gold); outline: none; }
+  .doc-var-textarea { resize: vertical; min-height: 72px; font-family: 'JetBrains Mono', monospace; }
+  .doc-var-submit { align-self: flex-start; padding: 11px 28px; background: var(--accent-gold); color: var(--bg-primary); border: none; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .doc-var-submit:disabled { background: var(--bg-secondary); color: var(--text-muted); cursor: not-allowed; opacity: 0.5; }
+  .doc-var-hint { font-size: 11px; color: var(--text-muted); }
+
+  /* AI generate */
+  .doc-ai-wrap { padding: 24px; max-width: 720px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .doc-ai-wrap label { font-family: 'Bricolage Grotesque', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+  .doc-ai-wrap textarea { background: var(--bg-void); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 10px 14px; color: var(--text-primary); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; resize: vertical; width: 100%; box-sizing: border-box; }
+  .doc-ai-wrap textarea:focus { border-color: var(--accent-gold); outline: none; }
+  .doc-ai-btn { align-self: flex-start; padding: 11px 24px; border: none; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--accent-gold); color: var(--bg-primary); }
+  .doc-ai-btn:disabled { background: var(--bg-secondary); color: var(--text-muted); cursor: not-allowed; opacity: 0.6; }
+  .doc-ai-error { color: var(--status-offline); font-size: 12px; }
+
+  /* Split editor / preview */
+  .doc-split { flex: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+  @media (max-width: 900px) { .doc-split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  .doc-pane { display: flex; flex-direction: column; overflow: hidden; }
+  .doc-pane + .doc-pane { border-left: 1px solid var(--border-subtle); }
+  @media (max-width: 900px) { .doc-pane + .doc-pane { border-left: none; border-top: 1px solid var(--border-subtle); } }
+  .doc-pane-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--bg-void); border-bottom: 1px solid var(--border-subtle); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-family: 'Bricolage Grotesque', sans-serif; }
+  .doc-md-textarea { flex: 1; background: var(--bg-primary); border: none; outline: none; padding: 20px 24px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7; resize: none; }
+  .doc-preview-tabs { display: flex; gap: 4px; }
+  .doc-preview-tab { padding: 4px 10px; border-radius: 3px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-family: 'Bricolage Grotesque', sans-serif; cursor: pointer; background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted); }
+  .doc-preview-tab.active { color: var(--accent-gold); border-color: var(--accent-gold); background: rgba(var(--accent-gold-rgb), 0.08); }
+  .doc-preview-body { flex: 1; overflow: auto; }
+  .doc-preview-body.styled { padding: 24px 28px; background: var(--bg-primary); font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+  .doc-preview-body.pdf, .doc-preview-body.docx { background: #202024; padding: 24px; }
+  .doc-preview-body.pdf .doc-preview-sheet { background: #ffffff; color: #1a1a1a; font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.65; padding: 48px 60px; max-width: 820px; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,0.3); border-radius: 2px; }
+  .doc-preview-body.docx .doc-preview-sheet { background: #ffffff; color: #000000; font-family: 'Calibri', 'Arial', sans-serif; font-size: 13px; line-height: 1.5; padding: 56px 64px; max-width: 820px; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,0.3); border-radius: 2px; }
+  .doc-preview-body h1 { font-size: 1.6em; margin: 0 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #D4AF37; }
+  .doc-preview-body h2 { font-size: 1.3em; margin: 18px 0 6px 0; }
+  .doc-preview-body h3 { font-size: 1.1em; margin: 14px 0 4px 0; }
+  .doc-preview-body p { margin-bottom: 10px; }
+  .doc-preview-body ul, .doc-preview-body ol { padding-left: 24px; margin-bottom: 10px; }
+  .doc-preview-body table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .doc-preview-body th, .doc-preview-body td { padding: 8px 12px; border: 1px solid var(--border-subtle); text-align: left; }
+  .doc-preview-empty { display: flex; align-items: center; justify-content: center; height: 100%; padding: 32px; color: var(--text-muted); font-size: 13px; text-align: center; }
+
+  /* Export bar */
+  .doc-export-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--border-subtle); background: var(--bg-void); }
+  .doc-save-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--accent-gold); background: var(--accent-gold); color: var(--bg-primary); }
+  .doc-save-btn.saved { border-color: var(--status-online); background: rgba(var(--status-online-rgb), 0.1); color: var(--status-online); }
+  .doc-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .doc-export-divider { width: 1px; height: 24px; background: var(--border-subtle); flex-shrink: 0; }
+  .doc-export-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 4px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; }
+  .doc-export-btn.md { border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+  .doc-export-btn.pdf { border: 1px solid rgba(var(--status-offline-rgb), 0.4); color: var(--status-offline); }
+  .doc-export-btn.docx { border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc; }
+  .doc-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body class="p-4 select-none cc-has-sidebar">
@@ -840,36 +919,35 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   <div id="ideas-list"></div>
 </section>
 
-<section id="documents-panel" class="glass-card ws-panel mt-5" data-cc-page="documents">
-  <div class="ws-panel-header">
-    <div>
-      <div class="ws-panel-title">Documents</div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Markdown templates with {{variable}} placeholders. Auto-fills workspace + date context on render.</div>
-    </div>
-    <button class="ws-panel-add" onclick="ccDocNew()">+ New Template</button>
-  </div>
-  <div class="doc-list" id="doc-list"></div>
+<!-- Documents — LIST VIEW (saved docs) -->
+<section id="documents-panel" class="mt-5" data-cc-page="documents">
+  <div id="doc-list" class="doc-list"></div>
 </section>
 
-<!-- Doc editor modal -->
-<div class="doc-editor-overlay" id="doc-editor-overlay">
-  <div class="doc-editor">
-    <div class="doc-editor-header">
-      <div class="doc-editor-title" id="doc-editor-title">New Template</div>
-      <button onclick="ccDocCloseEditor()" style="background:transparent;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&times;</button>
+<!-- Documents — EDITOR VIEW (template picker, AI generate, split edit) -->
+<section id="documents-editor" class="mt-5" data-cc-page="documents-editor">
+  <div class="doc-editor-page">
+    <div class="doc-editor-toolbar">
+      <div class="doc-mode-row">
+        <button type="button" class="doc-mode-btn" id="doc-mode-template" data-mode="template" onclick="ccDocSetMode('template')">📋 Template</button>
+        <button type="button" class="doc-mode-btn" id="doc-mode-generate" data-mode="generate" onclick="ccDocSetMode('generate')">✨ AI Generate</button>
+      </div>
+      <input type="text" class="doc-title-input" id="doc-title" placeholder="Document title…">
+      <select class="doc-biz-select" id="doc-biz"></select>
+      <button type="button" class="doc-back-btn" onclick="ccDocBackToList()" title="Back to documents">← Back</button>
     </div>
-    <div class="doc-editor-body">
-      <div class="doc-hint">Available variables: <code>{{workspace_name}}</code> <code>{{workspace_icon}}</code> <code>{{today}}</code> <code>{{date_long}}</code> <code>{{time}}</code></div>
-      <input type="text" id="doc-editor-name" placeholder="Template name (e.g. 'SOW Template')">
-      <textarea id="doc-editor-body" placeholder="# {{workspace_name}} — Statement of Work&#10;&#10;Date: {{date_long}}&#10;&#10;## Scope&#10;{{scope}}"></textarea>
-      <input type="text" id="doc-editor-title-input" placeholder="(render only) Title for this rendered document" style="display:none">
+    <div class="doc-editor-stage" id="doc-editor-stage">
+      <!-- Step content is rendered here by ccDocRenderStep() -->
     </div>
-    <div class="doc-editor-footer">
-      <button class="cancel" onclick="ccDocCloseEditor()">Cancel</button>
-      <button class="primary" id="doc-editor-submit" onclick="ccDocSubmit()">Save Template</button>
+    <div class="doc-export-bar" id="doc-export-bar" style="display:none;">
+      <button type="button" class="doc-save-btn" id="doc-save-btn" onclick="ccDocSave()">💾 Save</button>
+      <span class="doc-export-divider"></span>
+      <button type="button" class="doc-export-btn md" onclick="ccDocExportMd()">↓ .md</button>
+      <button type="button" class="doc-export-btn pdf" onclick="ccDocExport('pdf')">↓ PDF</button>
+      <button type="button" class="doc-export-btn docx" onclick="ccDocExport('docx')">↓ DOCX</button>
     </div>
   </div>
-</div>
+</section>
 
 <!-- Phase 7: Intel Inbox -->
 <section id="inbox-panel" class="glass-card ws-panel mt-5" data-cc-page="inbox">
@@ -1128,6 +1206,7 @@ const CC_PAGE_META = {
                    cta: { label: '+ New Idea',     handler: 'ccShowIdeaForm()' } },
   'documents':   { title: 'Documents',     subtitleFn: () => (window.CC_DOCUMENTS_COUNT != null ? (window.CC_DOCUMENTS_COUNT + ' saved documents') : 'Templates and renders'),
                    cta: { label: '+ New Document', handler: 'ccDocNew()' } },
+  'documents-editor': { title: 'New Document', subtitleFn: () => (window.CC_DOC_EDITOR_MODE === 'generate' ? 'AI generation' : 'Template editor') },
   'calendar':    { title: 'Calendar',      subtitleFn: () => 'Scheduled work' },
   'daily-brief': { title: 'Daily Brief',   subtitleFn: () => 'Chief-of-staff summary',
                    cta: { label: '📨 Send Now',    handler: 'ccRunDailyBrief()' } },
@@ -3954,84 +4033,549 @@ async function ccSubmitIdea() {
   await ccLoadIdeas();
 }
 
-// ── Phase 8: Documents ─────────────────────────────────────────────
-let CC_DOC_MODE = 'create'; // 'create' | 'render'
+// ── Documents (Phase 2, OC MC port) ────────────────────────────────
+// Editor state:
+//   CC_DOC_EDITOR_MODE    'template' | 'generate'
+//   CC_DOC_EDITOR_STEP    'pick' | 'variables' | 'edit' | 'ai'
+//   CC_DOC_TEMPLATES      loaded from /api/templates (built_in list)
+//   CC_DOC_CURRENT_DOC    the saved-document id being edited, or null
+//   CC_DOC_PREVIEW_MODE   'styled' | 'pdf' | 'docx'
+//   CC_DOC_DIRTY          true when there are unsaved changes
+
+let CC_DOC_EDITOR_MODE = 'template';
+let CC_DOC_EDITOR_STEP = 'pick';
+let CC_DOC_TEMPLATES = [];
 let CC_DOC_CURRENT_TEMPLATE = null;
+let CC_DOC_VARIABLES = {};
+let CC_DOC_CURRENT_DOC = null;
+let CC_DOC_PREVIEW_MODE = 'styled';
+let CC_DOC_DIRTY = false;
+let CC_DOC_ACTIVE_CATEGORY = 'All';
+window.CC_DOC_EDITOR_MODE = CC_DOC_EDITOR_MODE;
+
+const CC_DOC_TYPE_LABELS = {
+  proposal: 'Proposal', scope_of_work: 'SoW', nda: 'NDA', creator_agreement: 'Creator Agmt',
+  invoice: 'Invoice', project_brief: 'Brief', meeting_agenda: 'Agenda',
+  campaign_brief: 'Campaign', weekly_summary: 'Weekly Summary', general: 'General',
+};
+
+// ── List view ──────────────────────────────────────────────────────
+
+function ccDocFormatDate(ts) {
+  return new Date(ts * 1000).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
 
 async function ccLoadDocuments() {
   const list = document.getElementById('doc-list');
   if (!list) return;
   try {
-    const r = await fetch('/api/templates');
+    const r = await fetch('/api/documents');
     const data = await r.json();
-    const tpls = (data.templates || []);
-    window.CC_DOCUMENTS_COUNT = tpls.length;
+    const docs = (data.documents || []);
+    window.CC_DOCUMENTS_COUNT = data.total != null ? data.total : docs.length;
     if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
-    if (tpls.length === 0) {
-      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No templates yet. Click "New Template".</div>';
+    if (docs.length === 0) {
+      list.innerHTML =
+        '<div class="doc-empty">' +
+        '<div class="doc-empty-icon">📄</div>' +
+        '<div class="doc-empty-title">No documents yet</div>' +
+        '<div class="doc-empty-body">Create your first document using a template or AI generation</div>' +
+        '</div>';
       return;
     }
-    list.innerHTML = tpls.map(t =>
-      '<div class="doc-row">' +
-      '<span class="doc-row-name">' + ccEscapeHtml(t.name) + '</span>' +
-      '<span class="doc-row-type">' + ccEscapeHtml(t.doc_type || 'md') + '</span>' +
-      '<button class="doc-row-btn" onclick="ccDocRender(' + t.id + ')">Render</button>' +
-      '</div>'
-    ).join('');
+    list.innerHTML = docs.map((d) => {
+      const typeLabel = (d.type && CC_DOC_TYPE_LABELS[d.type]) || (d.type || 'Doc');
+      const statusCls = d.status === 'final' ? 'status-final' : 'status-draft';
+      const statusText = (d.status || 'draft').replace(/^./, (m) => m.toUpperCase());
+      const chars = (d.content_md || '').length;
+      const meta = ccDocFormatDate(d.updated_at || d.created_at) + ' · ' + chars.toLocaleString() + ' chars';
+      const safeTitle = ccEscapeHtml(d.title || 'Untitled');
+      return (
+        '<div class="doc-row" data-doc-id="' + d.id + '" onclick="ccDocOpen(' + d.id + ')">' +
+          '<div class="doc-row-main">' +
+            '<div class="doc-row-title-line">' +
+              '<span class="doc-row-name">' + safeTitle + '</span>' +
+              '<span class="doc-row-badge type">' + ccEscapeHtml(typeLabel) + '</span>' +
+              '<span class="doc-row-badge ' + statusCls + '">' + ccEscapeHtml(statusText) + '</span>' +
+            '</div>' +
+            '<div class="doc-row-meta">' + ccEscapeHtml(meta) + '</div>' +
+          '</div>' +
+          '<button class="doc-row-delete" onclick="event.stopPropagation();ccDocDelete(' + d.id + ')" aria-label="Delete">×</button>' +
+        '</div>'
+      );
+    }).join('');
   } catch (err) { console.warn('ccLoadDocuments failed', err); }
 }
 
-function ccDocNew() {
-  CC_DOC_MODE = 'create';
-  CC_DOC_CURRENT_TEMPLATE = null;
-  document.getElementById('doc-editor-title').textContent = 'New Template';
-  document.getElementById('doc-editor-name').value = '';
-  document.getElementById('doc-editor-name').style.display = '';
-  document.getElementById('doc-editor-body').value = '';
-  document.getElementById('doc-editor-title-input').style.display = 'none';
-  document.getElementById('doc-editor-submit').textContent = 'Save Template';
-  document.getElementById('doc-editor-overlay').classList.add('open');
+async function ccDocDelete(id) {
+  if (!confirm('Delete this document?')) return;
+  const r = await fetch('/api/documents/' + id, { method: 'DELETE' });
+  if (!r.ok) { alert('Delete failed'); return; }
+  await ccLoadDocuments();
 }
 
-async function ccDocRender(id) {
+// ── Editor state machine ───────────────────────────────────────────
+
+async function ccDocLoadTemplates() {
   const r = await fetch('/api/templates');
   const data = await r.json();
-  const tpl = (data.templates || []).find(t => t.id === id);
+  CC_DOC_TEMPLATES = (data.templates && data.templates.built_in) || [];
+}
+
+function ccDocPopulateBizSelect() {
+  const sel = document.getElementById('doc-biz');
+  if (!sel) return;
+  const options = Array.from(CC_WORKSPACES.values()).filter((w) => !w.is_global || true).map((w) => {
+    return '<option value="' + w.slug + '"' + (w.slug === CC_ACTIVE_SLUG ? ' selected' : '') + '>' + ccEscapeHtml(w.icon_emoji + ' ' + w.name) + '</option>';
+  }).join('');
+  sel.innerHTML = options;
+  sel.onchange = () => { CC_DOC_DIRTY = true; };
+}
+
+async function ccDocNew() {
+  await ccDocLoadTemplates();
+  CC_DOC_EDITOR_MODE = 'template';
+  CC_DOC_EDITOR_STEP = 'pick';
+  CC_DOC_CURRENT_TEMPLATE = null;
+  CC_DOC_VARIABLES = {};
+  CC_DOC_CURRENT_DOC = null;
+  CC_DOC_DIRTY = false;
+  window.CC_DOC_EDITOR_MODE = CC_DOC_EDITOR_MODE;
+  ccDocPopulateBizSelect();
+  const titleInput = document.getElementById('doc-title');
+  if (titleInput) titleInput.value = '';
+  ccDocUpdateModeButtons();
+  ccDocRenderStage();
+  ccShowPage('documents-editor');
+}
+
+async function ccDocOpen(id) {
+  const r = await fetch('/api/documents/' + id);
+  if (!r.ok) { alert('Could not open document'); return; }
+  const { document: doc } = await r.json();
+  if (!doc) return;
+  CC_DOC_EDITOR_MODE = 'template';
+  CC_DOC_EDITOR_STEP = 'edit';
+  CC_DOC_CURRENT_DOC = doc;
+  CC_DOC_CURRENT_TEMPLATE = null;
+  try { CC_DOC_VARIABLES = JSON.parse(doc.variables_json || '{}'); } catch { CC_DOC_VARIABLES = {}; }
+  CC_DOC_DIRTY = false;
+  window.CC_DOC_EDITOR_MODE = CC_DOC_EDITOR_MODE;
+  await ccDocLoadTemplates();
+  ccDocPopulateBizSelect();
+  const titleInput = document.getElementById('doc-title');
+  if (titleInput) titleInput.value = doc.title || '';
+  ccDocUpdateModeButtons();
+  ccDocRenderStage();
+  ccShowPage('documents-editor');
+}
+
+function ccDocBackToList() {
+  if (CC_DOC_DIRTY && !confirm('You have unsaved changes. Leave the editor anyway?')) return;
+  ccShowPage('documents');
+  ccLoadDocuments();
+}
+
+function ccDocSetMode(mode) {
+  CC_DOC_EDITOR_MODE = mode;
+  window.CC_DOC_EDITOR_MODE = mode;
+  CC_DOC_EDITOR_STEP = mode === 'generate' ? 'ai' : 'pick';
+  ccDocUpdateModeButtons();
+  ccDocRenderStage();
+  if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
+}
+
+function ccDocUpdateModeButtons() {
+  const t = document.getElementById('doc-mode-template');
+  const g = document.getElementById('doc-mode-generate');
+  if (t) t.classList.toggle('active', CC_DOC_EDITOR_MODE === 'template');
+  if (g) g.classList.toggle('active', CC_DOC_EDITOR_MODE === 'generate');
+}
+
+// ── Stage renderer (template picker, variable form, AI gen, split edit) ──
+
+function ccDocRenderStage() {
+  const stage = document.getElementById('doc-editor-stage');
+  const exportBar = document.getElementById('doc-export-bar');
+  if (!stage) return;
+  stage.innerHTML = '';
+  if (exportBar) exportBar.style.display = CC_DOC_EDITOR_STEP === 'edit' ? '' : 'none';
+  if (CC_DOC_EDITOR_STEP === 'pick') { ccDocRenderPicker(stage); return; }
+  if (CC_DOC_EDITOR_STEP === 'variables') { ccDocRenderVariables(stage); return; }
+  if (CC_DOC_EDITOR_STEP === 'ai') { ccDocRenderAiForm(stage); return; }
+  if (CC_DOC_EDITOR_STEP === 'edit') { ccDocRenderEdit(stage); return; }
+}
+
+const CC_DOC_CAT_COLOR = {
+  'Client-Facing': '#D4AF37', 'Legal': '#8B0000', 'Finance': 'rgb(34,197,94)',
+  'Operations': '#6366f1', 'Marketing': '#00D4AA', 'Reports': '#FFD700',
+};
+
+function ccDocRenderPicker(stage) {
+  const cats = ['All'];
+  for (const t of CC_DOC_TEMPLATES) if (!cats.includes(t.category)) cats.push(t.category);
+  const tabsHtml = cats.map((c) => {
+    const active = c === CC_DOC_ACTIVE_CATEGORY ? ' active' : '';
+    const color = CC_DOC_CAT_COLOR[c] || 'var(--accent-gold)';
+    const style = active
+      ? 'style="border-color:' + color + ';background:rgba(212,175,55,0.1);color:' + color + ';"'
+      : '';
+    return '<button type="button" class="doc-cat-tab' + active + '" ' + style + ' onclick="ccDocSetCategory(\\'' + c + '\\')">' + ccEscapeHtml(c) + '</button>';
+  }).join('');
+  const visibleTpls = CC_DOC_ACTIVE_CATEGORY === 'All'
+    ? CC_DOC_TEMPLATES
+    : CC_DOC_TEMPLATES.filter((t) => t.category === CC_DOC_ACTIVE_CATEGORY);
+  const cardsHtml = visibleTpls.map((t) => {
+    const color = CC_DOC_CAT_COLOR[t.category] || 'var(--accent-gold)';
+    const reqCount = (t.variables || []).filter((v) => v.required).length;
+    return (
+      '<button type="button" class="doc-tpl-card" style="border-top-color:' + color + ';" onclick="ccDocPickTemplate(\\'' + t.id + '\\')">' +
+        '<div class="doc-tpl-card-label">' + ccEscapeHtml(t.label) + '</div>' +
+        '<div class="doc-tpl-card-desc">' + ccEscapeHtml(t.description || '') + '</div>' +
+        '<div class="doc-tpl-card-meta" style="color:' + color + ';">' + reqCount + ' required field' + (reqCount === 1 ? '' : 's') + '</div>' +
+      '</button>'
+    );
+  }).join('');
+  stage.innerHTML =
+    '<div class="doc-tpl-wrap">' +
+      '<div class="doc-cat-tabs">' + tabsHtml + '</div>' +
+      (visibleTpls.length === 0
+        ? '<div class="doc-var-hint">No templates in this category yet.</div>'
+        : '<div class="doc-tpl-grid">' + cardsHtml + '</div>') +
+    '</div>';
+}
+
+function ccDocSetCategory(cat) {
+  CC_DOC_ACTIVE_CATEGORY = cat;
+  ccDocRenderStage();
+}
+
+function ccDocPickTemplate(id) {
+  CC_DOC_CURRENT_TEMPLATE = CC_DOC_TEMPLATES.find((t) => t.id === id) || null;
+  if (!CC_DOC_CURRENT_TEMPLATE) return;
+  CC_DOC_VARIABLES = {};
+  // Pre-fill common variables from workspace context
+  const ws = CC_WORKSPACES.get(CC_ACTIVE_SLUG);
+  const prefill = {
+    date: new Date().toISOString().slice(0, 10),
+    company_name: (ws && ws.name) || '',
+    provider_name: (ws && ws.name) || '',
+  };
+  for (const v of CC_DOC_CURRENT_TEMPLATE.variables || []) {
+    if (prefill[v.key] !== undefined) CC_DOC_VARIABLES[v.key] = prefill[v.key];
+  }
+  CC_DOC_EDITOR_STEP = 'variables';
+  const titleEl = document.getElementById('doc-title');
+  if (titleEl && !titleEl.value) titleEl.value = CC_DOC_CURRENT_TEMPLATE.label;
+  ccDocRenderStage();
+}
+
+function ccDocRenderVariables(stage) {
+  const tpl = CC_DOC_CURRENT_TEMPLATE;
+  if (!tpl) { ccDocSetMode('template'); return; }
+  const vars = tpl.variables || [];
+  if (vars.length === 0) {
+    stage.innerHTML = '<div class="doc-var-wrap"><div class="doc-var-hint">This template has no variables — ready to edit.</div><button type="button" class="doc-var-submit" onclick="ccDocFillAndEdit()">Open Editor →</button></div>';
+    return;
+  }
+  const fieldsHtml = vars.map((v) => {
+    const req = v.required ? '<span class="req">*</span>' : '';
+    const label = '<label class="doc-var-label">' + ccEscapeHtml(v.label) + req + '</label>';
+    const val = CC_DOC_VARIABLES[v.key] || '';
+    const safeVal = ccEscapeHtml(val);
+    if (v.type === 'textarea') {
+      return '<div>' + label + '<textarea class="doc-var-textarea" rows="3" data-var="' + ccEscapeHtml(v.key) + '" oninput="ccDocOnVar(event)" placeholder="' + ccEscapeHtml(v.placeholder || '') + '">' + safeVal + '</textarea></div>';
+    }
+    if (v.type === 'select') {
+      const opts = (v.options || []).map((o) => '<option value="' + ccEscapeHtml(o) + '"' + (val === o ? ' selected' : '') + '>' + ccEscapeHtml(o) + '</option>').join('');
+      return '<div>' + label + '<select class="doc-var-select" data-var="' + ccEscapeHtml(v.key) + '" onchange="ccDocOnVar(event)"><option value="">Select…</option>' + opts + '</select></div>';
+    }
+    const type = v.type === 'number' ? 'number' : (v.type === 'date' ? 'date' : 'text');
+    return '<div>' + label + '<input type="' + type + '" class="doc-var-input" data-var="' + ccEscapeHtml(v.key) + '" oninput="ccDocOnVar(event)" value="' + safeVal + '" placeholder="' + ccEscapeHtml(v.placeholder || '') + '"></div>';
+  }).join('');
+  stage.innerHTML =
+    '<div class="doc-var-wrap">' +
+      '<div class="doc-var-grid">' + fieldsHtml + '</div>' +
+      '<div style="display:flex;gap:10px;align-items:center;">' +
+        '<button type="button" class="doc-var-submit" id="doc-var-submit" onclick="ccDocFillAndEdit()">Fill Template →</button>' +
+        '<button type="button" class="doc-back-btn" onclick="ccDocSetMode(\\'template\\')">← Change Template</button>' +
+      '</div>' +
+      '<div class="doc-var-hint" id="doc-var-hint"></div>' +
+    '</div>';
+  ccDocUpdateVarSubmit();
+}
+
+function ccDocOnVar(event) {
+  const el = event.target;
+  const key = el.dataset.var;
+  if (!key) return;
+  CC_DOC_VARIABLES[key] = el.value;
+  CC_DOC_DIRTY = true;
+  ccDocUpdateVarSubmit();
+}
+
+function ccDocUpdateVarSubmit() {
+  const tpl = CC_DOC_CURRENT_TEMPLATE;
   if (!tpl) return;
-  CC_DOC_MODE = 'render';
-  CC_DOC_CURRENT_TEMPLATE = tpl;
-  document.getElementById('doc-editor-title').textContent = 'Render: ' + tpl.name;
-  document.getElementById('doc-editor-name').style.display = 'none';
-  document.getElementById('doc-editor-body').value = tpl.body_md;
-  document.getElementById('doc-editor-title-input').style.display = '';
-  document.getElementById('doc-editor-title-input').value = tpl.name + ' — ' + new Date().toISOString().slice(0, 10);
-  document.getElementById('doc-editor-submit').textContent = 'Render + Download';
-  document.getElementById('doc-editor-overlay').classList.add('open');
+  const missing = (tpl.variables || []).filter((v) => v.required && !(CC_DOC_VARIABLES[v.key] && String(CC_DOC_VARIABLES[v.key]).trim()));
+  const btn = document.getElementById('doc-var-submit');
+  const hint = document.getElementById('doc-var-hint');
+  if (btn) btn.disabled = missing.length > 0;
+  if (hint) hint.textContent = missing.length > 0 ? 'Fill in all required fields (*) to continue' : '';
 }
 
-function ccDocCloseEditor() {
-  document.getElementById('doc-editor-overlay').classList.remove('open');
+function ccDocRenderFromTemplate(tpl, vars) {
+  return (tpl.default_content || '').replace(/\\[\\[\\s*([a-zA-Z0-9_]+)\\s*\\]\\]/g, (_m, key) => {
+    return Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key] || '') : ('[[' + key + ']]');
+  });
 }
 
-async function ccDocSubmit() {
-  if (CC_DOC_MODE === 'create') {
-    const name = document.getElementById('doc-editor-name').value.trim();
-    const body = document.getElementById('doc-editor-body').value;
-    if (!name || !body) { alert('Name and body required'); return; }
-    const r = await fetch('/api/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, body_md: body }) });
-    if (!r.ok) { alert('Save failed'); return; }
-    ccDocCloseEditor();
-    await ccLoadDocuments();
-  } else {
-    const title = document.getElementById('doc-editor-title-input').value.trim() || (CC_DOC_CURRENT_TEMPLATE.name + ' — ' + new Date().toISOString().slice(0, 10));
-    const body = document.getElementById('doc-editor-body').value;
-    const r = await fetch('/api/documents/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body_md: body, title }) });
-    if (!r.ok) { alert('Render failed'); return; }
+function ccDocFillAndEdit() {
+  const tpl = CC_DOC_CURRENT_TEMPLATE;
+  if (!tpl) return;
+  const missing = (tpl.variables || []).filter((v) => v.required && !(CC_DOC_VARIABLES[v.key] && String(CC_DOC_VARIABLES[v.key]).trim()));
+  if (missing.length > 0) return;
+  const rendered = ccDocRenderFromTemplate(tpl, CC_DOC_VARIABLES);
+  CC_DOC_CURRENT_DOC = { id: null, title: (document.getElementById('doc-title') || {}).value || tpl.label, content_md: rendered, type: tpl.type, template_key: tpl.id, variables_json: JSON.stringify(CC_DOC_VARIABLES), status: 'draft' };
+  CC_DOC_EDITOR_STEP = 'edit';
+  ccDocRenderStage();
+}
+
+// AI generation
+function ccDocRenderAiForm(stage) {
+  stage.innerHTML =
+    '<div class="doc-ai-wrap">' +
+      '<div>' +
+        '<label>What document do you need?</label>' +
+        '<textarea id="doc-ai-prompt" rows="4" placeholder="e.g. Write a proposal for a 3-month retainer for a luxury concierge client relocating to Costa Rica"></textarea>' +
+      '</div>' +
+      '<div>' +
+        '<label>Additional context (optional)</label>' +
+        '<textarea id="doc-ai-context" rows="2" placeholder="Client details, tone preferences, constraints…"></textarea>' +
+      '</div>' +
+      '<button type="button" class="doc-ai-btn" id="doc-ai-btn" onclick="ccDocGenerate()">✨ Generate Document</button>' +
+      '<div class="doc-ai-error" id="doc-ai-error"></div>' +
+    '</div>';
+}
+
+async function ccDocGenerate() {
+  const promptEl = document.getElementById('doc-ai-prompt');
+  const contextEl = document.getElementById('doc-ai-context');
+  const btn = document.getElementById('doc-ai-btn');
+  const errEl = document.getElementById('doc-ai-error');
+  if (!promptEl || !btn) return;
+  const prompt = (promptEl.value || '').trim();
+  if (!prompt) { errEl.textContent = 'Write a prompt first.'; return; }
+  btn.disabled = true;
+  btn.textContent = '✨ Generating…';
+  errEl.textContent = '';
+  try {
+    const sel = document.getElementById('doc-biz');
+    const bizSlug = sel ? sel.value : CC_ACTIVE_SLUG;
+    const r = await fetch('/api/documents/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, context: (contextEl && contextEl.value) || '', business_slug: bizSlug }),
+    });
     const data = await r.json();
-    const docId = data.document.id;
-    ccDocCloseEditor();
-    // Trigger download
-    window.open('/api/documents/' + docId + '/file?token=' + encodeURIComponent(TOKEN) + '&b=' + encodeURIComponent(CC_ACTIVE_SLUG), '_blank');
+    if (!r.ok) { errEl.textContent = (data && data.error) || ('HTTP ' + r.status); return; }
+    const titleEl = document.getElementById('doc-title');
+    const derivedTitle = (titleEl && titleEl.value.trim()) || prompt.slice(0, 60);
+    if (titleEl && !titleEl.value) titleEl.value = derivedTitle;
+    CC_DOC_CURRENT_DOC = { id: null, title: derivedTitle, content_md: data.content, type: 'general', template_key: null, variables_json: '{}', status: 'draft' };
+    CC_DOC_DIRTY = true;
+    CC_DOC_EDITOR_STEP = 'edit';
+    ccDocRenderStage();
+  } catch (err) {
+    errEl.textContent = 'Generation failed: ' + (err && err.message || err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Generate Document';
+  }
+}
+
+// Split editor / preview
+function ccDocRenderEdit(stage) {
+  const doc = CC_DOC_CURRENT_DOC || { content_md: '', title: '' };
+  stage.innerHTML =
+    '<div class="doc-split">' +
+      '<div class="doc-pane">' +
+        '<div class="doc-pane-header"><span>✏️ Markdown</span>' +
+          (CC_DOC_CURRENT_TEMPLATE ? '<button type="button" class="doc-back-btn" onclick="CC_DOC_EDITOR_STEP=\\'variables\\';ccDocRenderStage()">← Variables</button>' : '') +
+        '</div>' +
+        '<textarea class="doc-md-textarea" id="doc-md" oninput="ccDocOnMdInput(event)">' + ccEscapeHtml(doc.content_md || '') + '</textarea>' +
+      '</div>' +
+      '<div class="doc-pane">' +
+        '<div class="doc-pane-header">' +
+          '<div class="doc-preview-tabs">' +
+            '<button type="button" class="doc-preview-tab' + (CC_DOC_PREVIEW_MODE === 'styled' ? ' active' : '') + '" onclick="ccDocSetPreview(\\'styled\\')">✨ Styled</button>' +
+            '<button type="button" class="doc-preview-tab' + (CC_DOC_PREVIEW_MODE === 'pdf' ? ' active' : '') + '" onclick="ccDocSetPreview(\\'pdf\\')">📄 PDF</button>' +
+            '<button type="button" class="doc-preview-tab' + (CC_DOC_PREVIEW_MODE === 'docx' ? ' active' : '') + '" onclick="ccDocSetPreview(\\'docx\\')">📝 DOCX</button>' +
+          '</div>' +
+          '<span style="font-family:\\'JetBrains Mono\\',monospace;font-size:11px;color:var(--text-muted)" id="doc-char-count"></span>' +
+        '</div>' +
+        '<div class="doc-preview-body ' + CC_DOC_PREVIEW_MODE + '" id="doc-preview"></div>' +
+      '</div>' +
+    '</div>';
+  ccDocUpdatePreview();
+}
+
+function ccDocSetPreview(mode) {
+  CC_DOC_PREVIEW_MODE = mode;
+  ccDocRenderStage();
+}
+
+function ccDocOnMdInput(event) {
+  if (!CC_DOC_CURRENT_DOC) CC_DOC_CURRENT_DOC = {};
+  CC_DOC_CURRENT_DOC.content_md = event.target.value;
+  CC_DOC_DIRTY = true;
+  ccDocUpdatePreview();
+  const saveBtn = document.getElementById('doc-save-btn');
+  if (saveBtn) { saveBtn.classList.remove('saved'); saveBtn.textContent = '💾 Save'; }
+}
+
+// Minimal inline markdown → HTML for the live preview. Matches the subset
+// used in templates: headings, bold/italic/code, lists, hr, tables, links.
+function ccDocMdToHtml(md) {
+  if (!md) return '';
+  const lines = md.replace(/\\r\\n?/g, '\\n').split('\\n');
+  const out = [];
+  let inList = null; // 'ul' | 'ol' | null
+  let inTable = false;
+  const inline = (s) => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+    .replace(/\`(.+?)\`/g, '<code>$1</code>')
+    .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2">$1</a>');
+  const closeList = () => { if (inList) { out.push('</' + inList + '>'); inList = null; } };
+  const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; } };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const trimmed = l.trim();
+    if (trimmed === '') { closeList(); closeTable(); continue; }
+    if (/^---+$/.test(trimmed)) { closeList(); closeTable(); out.push('<hr>'); continue; }
+    let m;
+    if ((m = /^#\\s+(.+)$/.exec(trimmed))) { closeList(); closeTable(); out.push('<h1>' + inline(m[1]) + '</h1>'); continue; }
+    if ((m = /^##\\s+(.+)$/.exec(trimmed))) { closeList(); closeTable(); out.push('<h2>' + inline(m[1]) + '</h2>'); continue; }
+    if ((m = /^###\\s+(.+)$/.exec(trimmed))) { closeList(); closeTable(); out.push('<h3>' + inline(m[1]) + '</h3>'); continue; }
+    if ((m = /^\\s*[-*]\\s+(.+)$/.exec(l))) {
+      closeTable();
+      if (inList !== 'ul') { closeList(); out.push('<ul>'); inList = 'ul'; }
+      out.push('<li>' + inline(m[1]) + '</li>');
+      continue;
+    }
+    if ((m = /^\\s*\\d+\\.\\s+(.+)$/.exec(l))) {
+      closeTable();
+      if (inList !== 'ol') { closeList(); out.push('<ol>'); inList = 'ol'; }
+      out.push('<li>' + inline(m[1]) + '</li>');
+      continue;
+    }
+    closeList();
+    out.push('<p>' + inline(trimmed) + '</p>');
+  }
+  closeList();
+  closeTable();
+  return out.join('\\n');
+}
+
+function ccDocUpdatePreview() {
+  const body = document.getElementById('doc-preview');
+  const count = document.getElementById('doc-char-count');
+  const md = (CC_DOC_CURRENT_DOC && CC_DOC_CURRENT_DOC.content_md) || '';
+  if (count) count.textContent = md.length.toLocaleString() + ' chars';
+  if (!body) return;
+  if (!md.trim()) {
+    body.innerHTML = '<div class="doc-preview-empty">Your document preview will appear here. Type in the editor to see it rendered.</div>';
+    return;
+  }
+  const html = ccDocMdToHtml(md);
+  if (CC_DOC_PREVIEW_MODE === 'styled') {
+    body.innerHTML = html;
+  } else {
+    body.innerHTML = '<div class="doc-preview-sheet">' + html + '</div>';
+  }
+}
+
+// Save / export
+
+async function ccDocSave() {
+  if (!CC_DOC_CURRENT_DOC) return;
+  const titleEl = document.getElementById('doc-title');
+  const title = ((titleEl && titleEl.value) || CC_DOC_CURRENT_DOC.title || 'Untitled').trim() || 'Untitled';
+  const payload = {
+    title,
+    content_md: CC_DOC_CURRENT_DOC.content_md || '',
+    type: CC_DOC_CURRENT_DOC.type || 'general',
+    status: CC_DOC_CURRENT_DOC.status || 'draft',
+    template_key: CC_DOC_CURRENT_DOC.template_key || null,
+    variables: CC_DOC_VARIABLES,
+  };
+  const saveBtn = document.getElementById('doc-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Saving…'; }
+  try {
+    let r;
+    if (CC_DOC_CURRENT_DOC.id) {
+      r = await fetch('/api/documents/' + CC_DOC_CURRENT_DOC.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    } else {
+      r = await fetch('/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    }
+    if (!r.ok) { alert('Save failed'); return; }
+    const data = await r.json();
+    CC_DOC_CURRENT_DOC = data.document;
+    CC_DOC_DIRTY = false;
+    if (saveBtn) { saveBtn.classList.add('saved'); saveBtn.textContent = '✅ Saved'; setTimeout(() => { saveBtn.classList.remove('saved'); saveBtn.textContent = '💾 Save'; }, 2500); }
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function ccDocExportMd() {
+  const md = (CC_DOC_CURRENT_DOC && CC_DOC_CURRENT_DOC.content_md) || '';
+  const title = ((document.getElementById('doc-title') || {}).value || (CC_DOC_CURRENT_DOC && CC_DOC_CURRENT_DOC.title) || 'document').replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100);
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title + '.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function ccDocExport(kind) {
+  if (!CC_DOC_CURRENT_DOC) return;
+  const md = CC_DOC_CURRENT_DOC.content_md || '';
+  const title = ((document.getElementById('doc-title') || {}).value || CC_DOC_CURRENT_DOC.title || 'Document').trim() || 'Document';
+  const selector = '.doc-export-btn.' + kind;
+  const btn = document.querySelector(selector);
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const r = await fetch('/api/documents/export/' + kind, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content_md: md, title }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert(kind.toUpperCase() + ' export failed: ' + ((err && err.error) || r.status));
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = title.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100) + '.' + kind;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 

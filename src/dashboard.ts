@@ -1533,68 +1533,181 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     }
   });
 
-  // Documents — template CRUD + render
-  app.get('/api/templates', (c) => {
+  // ── Documents — full feature (Phase 2) ────────────────────────────
+  // Built-in templates come from src/document-templates.ts (code-versioned).
+  // User-authored templates in document_templates (per-workspace). The list
+  // endpoint returns both, with built-ins flagged by `built_in: true`.
+  app.get('/api/templates', async (c) => {
+    const { BUILT_IN_TEMPLATES } = await import('./document-templates.js');
     const bizId = businessIdForSlug(getBizSlug(c));
-    return c.json({ templates: listDocumentTemplates(bizId) });
+    const custom = listDocumentTemplates(bizId).map((t) => ({
+      id: 'custom_' + t.id,
+      kind: 'custom' as const,
+      business_id: t.business_id,
+      label: t.name,
+      type: t.doc_type,
+      body_md: t.body_md,
+      variables_json: t.variables_json,
+    }));
+    const builtIn = BUILT_IN_TEMPLATES.map((t) => ({
+      id: t.id,
+      kind: 'built_in' as const,
+      label: t.label,
+      description: t.description,
+      category: t.category,
+      type: t.type,
+      variables: t.variables,
+      default_content: t.defaultContent,
+    }));
+    return c.json({ templates: { built_in: builtIn, custom } });
   });
-  app.post('/api/templates', async (c) => {
-    const body = await c.req.json<{
-      name: string;
-      doc_type?: string;
-      body_md: string;
-      variables?: Array<{ key: string; label: string }>;
-    }>();
-    if (!body?.name || !body?.body_md) return c.json({ error: 'name and body_md required' }, 400);
-    const bizId = businessIdForSlug(getBizSlug(c));
-    const tpl = createDocumentTemplate({ business_id: bizId, ...body });
-    return c.json({ template: tpl });
-  });
-  app.post('/api/documents/render', async (c) => {
-    const body = await c.req.json<{
-      template_id?: number;
-      body_md?: string;
-      title?: string;
-      variables?: Record<string, string>;
-    }>();
-    const bizId = businessIdForSlug(getBizSlug(c));
-    const active = resolveSlug(getBizSlug(c));
-    let sourceBody = body?.body_md || '';
-    let sourceTemplateId: number | null = null;
-    if (body?.template_id) {
-      const { getDb } = await import('./db.js');
-      const tpl = getDb().prepare('SELECT body_md FROM document_templates WHERE id = ?').get(body.template_id) as { body_md: string } | undefined;
-      if (!tpl) return c.json({ error: 'template not found' }, 404);
-      sourceBody = tpl.body_md;
-      sourceTemplateId = body.template_id;
-    }
-    if (!sourceBody) return c.json({ error: 'template_id or body_md required' }, 400);
 
-    const now = new Date();
-    const autoVars: Record<string, string> = {
-      workspace_name: active?.name ?? 'Cross-Business',
-      workspace_icon: active?.icon_emoji ?? '🌐',
-      today: now.toISOString().slice(0, 10),
-      date_long: now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    };
-    const merged: Record<string, string> = { ...autoVars, ...(body?.variables ?? {}) };
-    const rendered = sourceBody.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
-      return Object.prototype.hasOwnProperty.call(merged, key) ? merged[key] : `{{${key}}}`;
+  app.get('/api/documents', async (c) => {
+    const { listDocuments, countDocuments } = await import('./workspace-db.js');
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const type = c.req.query('type') || undefined;
+    const status = c.req.query('status') || undefined;
+    return c.json({
+      documents: listDocuments(bizId, { type, status }),
+      total: countDocuments(bizId),
     });
-    const title = (body?.title || 'Document').slice(0, 200);
-    const doc = saveRenderedDocument({
-      business_id: bizId,
-      template_id: sourceTemplateId,
-      title,
-      content_md: rendered,
-    });
+  });
+
+  app.get('/api/documents/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const { getDocument } = await import('./workspace-db.js');
+    const doc = getDocument(id);
+    if (!doc) return c.json({ error: 'not found' }, 404);
     return c.json({ document: doc });
   });
+
+  app.post('/api/documents', async (c) => {
+    const body = await c.req.json<{
+      title: string;
+      content_md: string;
+      type?: string;
+      status?: string;
+      template_id?: number | null;
+      template_key?: string | null;
+      variables?: Record<string, string>;
+    }>();
+    if (!body?.title?.trim()) return c.json({ error: 'title required' }, 400);
+    if (typeof body.content_md !== 'string') return c.json({ error: 'content_md required' }, 400);
+    const bizId = businessIdForSlug(getBizSlug(c));
+    const { createDocument } = await import('./workspace-db.js');
+    const doc = createDocument({
+      business_id: bizId,
+      title: body.title.trim().slice(0, 200),
+      content_md: body.content_md,
+      type: body.type ?? null,
+      status: body.status ?? 'draft',
+      template_id: body.template_id ?? null,
+      template_key: body.template_key ?? null,
+      variables: body.variables ?? null,
+    });
+    return c.json({ document: doc }, 201);
+  });
+
+  app.patch('/api/documents/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const body = await c.req.json<Record<string, unknown>>();
+    const { updateDocument } = await import('./workspace-db.js');
+    const doc = updateDocument(id, body as Parameters<typeof updateDocument>[1]);
+    if (!doc) return c.json({ error: 'not found' }, 404);
+    return c.json({ document: doc });
+  });
+
+  app.delete('/api/documents/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const { deleteDocument } = await import('./workspace-db.js');
+    deleteDocument(id);
+    return c.json({ deleted: true });
+  });
+
+  app.post('/api/documents/generate', async (c) => {
+    const body = await c.req.json<{
+      prompt?: string;
+      context?: string;
+      business_slug?: string;
+    }>();
+    const prompt = (body?.prompt || '').trim();
+    if (!prompt) return c.json({ error: 'prompt required' }, 400);
+    const slug = body?.business_slug || getBizSlug(c);
+    try {
+      const { generateDocumentMarkdown } = await import('./jobs/doc-ai.js');
+      const result = await generateDocumentMarkdown({
+        prompt,
+        context: body?.context || '',
+        businessSlug: slug,
+      });
+      return c.json({
+        content: result.markdown,
+        model: result.model,
+        input_tokens: result.inputTokens,
+        output_tokens: result.outputTokens,
+      });
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      if (e.code === 'ANTHROPIC_API_KEY_MISSING') {
+        return c.json({ error: e.message }, 503);
+      }
+      if (e.code === 'TIMEOUT') {
+        return c.json({ error: e.message }, 504);
+      }
+      logger.error({ err: e.message || err }, '/api/documents/generate failed');
+      return c.json({ error: 'generation failed', detail: e.message || 'unknown' }, 500);
+    }
+  });
+
+  app.post('/api/documents/export/pdf', async (c) => {
+    const body = await c.req.json<{ content_md?: string; title?: string }>();
+    if (!body?.content_md) return c.json({ error: 'content_md required' }, 400);
+    try {
+      const { renderPdf } = await import('./jobs/doc-export.js');
+      const pdf = await renderPdf(body.content_md, body.title || 'Document');
+      const safeTitle = (body.title || 'document').replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100);
+      return new Response(new Uint8Array(pdf), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${safeTitle}.pdf"`,
+        },
+      });
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      logger.error({ err: e.message || err }, '/api/documents/export/pdf failed');
+      return c.json({ error: 'pdf export failed', detail: e.message || 'unknown' }, 500);
+    }
+  });
+
+  app.post('/api/documents/export/docx', async (c) => {
+    const body = await c.req.json<{ content_md?: string; title?: string }>();
+    if (!body?.content_md) return c.json({ error: 'content_md required' }, 400);
+    try {
+      const { renderDocx } = await import('./jobs/doc-export.js');
+      const docx = await renderDocx(body.content_md, body.title || 'Document');
+      const safeTitle = (body.title || 'document').replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100);
+      return new Response(new Uint8Array(docx), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Disposition': `attachment; filename="${safeTitle}.docx"`,
+        },
+      });
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      logger.error({ err: e.message || err }, '/api/documents/export/docx failed');
+      return c.json({ error: 'docx export failed', detail: e.message || 'unknown' }, 500);
+    }
+  });
+
+  // Markdown download — serve saved doc's content_md as .md attachment
   app.get('/api/documents/:id/file', async (c) => {
     const id = parseInt(c.req.param('id'), 10);
-    const { getDb } = await import('./db.js');
-    const doc = getDb().prepare('SELECT title, content_md FROM documents WHERE id = ?').get(id) as { title: string; content_md: string } | undefined;
+    if (!Number.isFinite(id)) return c.text('invalid id', 400);
+    const { getDocument } = await import('./workspace-db.js');
+    const doc = getDocument(id);
     if (!doc) return c.text('not found', 404);
     const filename = doc.title.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 100) + '.md';
     return new Response(doc.content_md, {

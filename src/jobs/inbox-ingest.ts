@@ -54,25 +54,42 @@ function looksLikeUrl(s: string): string | null {
 }
 
 interface InboxSummary {
+  title: string;
   summary: string;
   action_items: string[];
   tags: string[];
+  importance: 'hot' | 'notable' | 'reference';
+  category: 'ai_news' | 'industry' | 'competitor' | 'opportunity' | 'general';
 }
 
+const VALID_IMPORTANCE = new Set(['hot', 'notable', 'reference']);
+const VALID_CATEGORY = new Set(['ai_news', 'industry', 'competitor', 'opportunity', 'general']);
+
 /**
- * Summarise an article + extract action items and tags. Runs a single
- * Gemini call returning JSON. Falls back to the raw text with no summary
- * if Gemini fails.
+ * Summarise an article and extract title + action items + tags + importance + category.
+ * Runs a single Gemini call returning JSON; falls back to safe defaults if
+ * Gemini fails so the ingest never throws back to the caller.
  */
 async function summarise(text: string, sourceUrl: string | null): Promise<InboxSummary> {
+  const fallbackTitle = (text || '').split(/\r?\n/)[0].trim().slice(0, 140) || 'Untitled';
   if (!text || text.length < 40) {
-    return { summary: text.trim().slice(0, 500), action_items: [], tags: [] };
+    return {
+      title: fallbackTitle,
+      summary: text.trim().slice(0, 500),
+      action_items: [],
+      tags: [],
+      importance: 'reference',
+      category: 'general',
+    };
   }
   const prompt = [
     'You are an inbox triage assistant. Read the text below and return JSON with these fields:',
+    '- title: concise 4-10 word title describing the piece',
     '- summary: 2-4 sentence neutral summary (no AI clichés, no em dashes)',
     '- action_items: array of short concrete actions this warrants (0-5 items). Empty array if none.',
     '- tags: array of 1-3 lowercase topic tags',
+    '- importance: one of "hot" (act on it today), "notable" (worth remembering), or "reference" (background material)',
+    '- category: one of "ai_news", "industry", "competitor", "opportunity", or "general"',
     '',
     'Return JSON only, no prose, no code fences.',
     '',
@@ -83,18 +100,32 @@ async function summarise(text: string, sourceUrl: string | null): Promise<InboxS
   ].filter(Boolean).join('\n');
   try {
     const resp = await generateContent(prompt);
-    const parsed = parseJsonResponse<InboxSummary>(resp);
-    if (parsed && typeof parsed.summary === 'string') {
+    const parsed = parseJsonResponse<Partial<InboxSummary>>(resp);
+    if (parsed && (typeof parsed.summary === 'string' || typeof parsed.title === 'string')) {
+      const imp = typeof parsed.importance === 'string' && VALID_IMPORTANCE.has(parsed.importance)
+        ? (parsed.importance as InboxSummary['importance']) : 'reference';
+      const cat = typeof parsed.category === 'string' && VALID_CATEGORY.has(parsed.category)
+        ? (parsed.category as InboxSummary['category']) : 'general';
       return {
-        summary: parsed.summary.trim().slice(0, 2000),
+        title: (typeof parsed.title === 'string' ? parsed.title : fallbackTitle).trim().slice(0, 200),
+        summary: (typeof parsed.summary === 'string' ? parsed.summary : '').trim().slice(0, 2000),
         action_items: Array.isArray(parsed.action_items) ? parsed.action_items.slice(0, 5).map(String) : [],
         tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3).map((t) => String(t).toLowerCase()) : [],
+        importance: imp,
+        category: cat,
       };
     }
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : err }, 'inbox-ingest: summarise failed');
   }
-  return { summary: text.slice(0, 500), action_items: [], tags: [] };
+  return {
+    title: fallbackTitle,
+    summary: text.slice(0, 500),
+    action_items: [],
+    tags: [],
+    importance: 'reference',
+    category: 'general',
+  };
 }
 
 /**
@@ -108,9 +139,12 @@ export async function ingestItem(input: IngestInput): Promise<InboxItem> {
   const parsedUrl = !explicitUrl && rawText ? looksLikeUrl(rawText) : null;
   const url = explicitUrl || parsedUrl || '';
 
+  let title: string | null = null;
   let summary = '';
   let actionItems: string[] = [];
   let tags: string[] = [];
+  let importance: string | null = null;
+  let category: string | null = null;
   let bodyText = rawText;
 
   if (url) {
@@ -118,29 +152,45 @@ export async function ingestItem(input: IngestInput): Promise<InboxItem> {
     if (article) {
       bodyText = article.content;
       const sum = await summarise(article.content, url);
-      summary = `${article.title}\n\n${sum.summary}`.trim();
-      actionItems = sum.action_items;
-      tags = sum.tags;
-    } else if (rawText) {
-      const sum = await summarise(rawText, url);
+      title = sum.title || article.title;
       summary = sum.summary;
       actionItems = sum.action_items;
       tags = sum.tags;
+      importance = sum.importance;
+      category = sum.category;
+    } else if (rawText) {
+      const sum = await summarise(rawText, url);
+      title = sum.title;
+      summary = sum.summary;
+      actionItems = sum.action_items;
+      tags = sum.tags;
+      importance = sum.importance;
+      category = sum.category;
+    } else {
+      // URL with no extractable content + no manual text — keep the URL
+      // itself as a placeholder rather than dropping the submission.
+      title = url.replace(/^https?:\/\//, '').slice(0, 120);
     }
   } else if (rawText) {
     const sum = await summarise(rawText, null);
+    title = sum.title;
     summary = sum.summary;
     actionItems = sum.action_items;
     tags = sum.tags;
+    importance = sum.importance;
+    category = sum.category;
   }
 
   return createInboxItem({
     business_id: input.business_id,
-    source_type: url ? 'url' : 'text',
+    source_type: url ? (/youtube\.com|youtu\.be/i.test(url) ? 'youtube' : 'url') : 'text',
     source_url: url,
     raw_text: bodyText.slice(0, 12000),
     summary,
     action_items: actionItems,
     tags,
+    importance,
+    category,
+    title,
   });
 }

@@ -76,6 +76,9 @@ export interface InboxItem {
   action_items_json: string;
   tags_json: string;
   status: string;
+  importance: string | null;
+  category: string | null;
+  title: string | null;
   created_at: number;
 }
 
@@ -390,19 +393,24 @@ export function createDecision(
 
 export function listInboxItems(
   businessId: string | null,
-  opts: { status?: string; limit?: number } = {},
+  opts: { status?: string; importance?: string; category?: string; source_type?: string; query?: string; limit?: number } = {},
   db?: Database.Database,
 ): InboxItem[] {
   const d = resolveDb(db);
-  const limit = opts.limit ?? 100;
-  if (opts.status) {
-    return d.prepare(
-      'SELECT * FROM inbox_items WHERE business_id IS ? AND status = ? ORDER BY created_at DESC LIMIT ?',
-    ).all(businessId, opts.status, limit) as InboxItem[];
+  const limit = Math.max(1, Math.min(500, opts.limit ?? 200));
+  const where: string[] = ['business_id IS ?'];
+  const params: unknown[] = [businessId];
+  if (opts.status) { where.push('status = ?'); params.push(opts.status); }
+  if (opts.importance) { where.push('importance = ?'); params.push(opts.importance); }
+  if (opts.category) { where.push('category = ?'); params.push(opts.category); }
+  if (opts.source_type) { where.push('source_type = ?'); params.push(opts.source_type); }
+  if (opts.query) {
+    where.push('(title LIKE ? OR summary LIKE ? OR raw_text LIKE ?)');
+    const q = '%' + opts.query.replace(/[%_]/g, '\\$&') + '%';
+    params.push(q, q, q);
   }
-  return d.prepare(
-    'SELECT * FROM inbox_items WHERE business_id IS ? ORDER BY created_at DESC LIMIT ?',
-  ).all(businessId, limit) as InboxItem[];
+  const sql = `SELECT * FROM inbox_items WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ${limit}`;
+  return d.prepare(sql).all(...params) as InboxItem[];
 }
 
 export function createInboxItem(
@@ -414,13 +422,17 @@ export function createInboxItem(
     summary?: string;
     action_items?: string[];
     tags?: string[];
+    importance?: string | null;
+    category?: string | null;
+    title?: string | null;
   },
   db?: Database.Database,
 ): InboxItem {
   const d = resolveDb(db);
   const res = d.prepare(
-    `INSERT INTO inbox_items (business_id, source_type, source_url, raw_text, summary, action_items_json, tags_json, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'unread')`,
+    `INSERT INTO inbox_items
+     (business_id, source_type, source_url, raw_text, summary, action_items_json, tags_json, status, importance, category, title)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'unread', ?, ?, ?)`,
   ).run(
     input.business_id,
     input.source_type ?? 'text',
@@ -429,6 +441,9 @@ export function createInboxItem(
     input.summary ?? '',
     JSON.stringify(input.action_items ?? []),
     JSON.stringify(input.tags ?? []),
+    input.importance ?? null,
+    input.category ?? null,
+    input.title ?? null,
   );
   return d.prepare('SELECT * FROM inbox_items WHERE id = ?').get(res.lastInsertRowid) as InboxItem;
 }

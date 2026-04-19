@@ -1498,7 +1498,11 @@ export function startDashboard(botApi?: Api<RawApi>): void {
   app.get('/api/inbox', (c) => {
     const bizId = businessIdForSlug(getBizSlug(c));
     const status = c.req.query('status') || undefined;
-    return c.json({ items: listInboxItems(bizId, { status }) });
+    const importance = c.req.query('importance') || undefined;
+    const category = c.req.query('category') || undefined;
+    const source_type = c.req.query('source') || undefined;
+    const query = c.req.query('q') || undefined;
+    return c.json({ items: listInboxItems(bizId, { status, importance, category, source_type, query }) });
   });
   app.post('/api/inbox/ingest', async (c) => {
     const body = await c.req.json<{ raw_text?: string; source_url?: string }>();

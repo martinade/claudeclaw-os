@@ -424,6 +424,23 @@ const WARROOM_ENABLED = warroomEnabled;
   .inbox-add-form input:focus { border-color: var(--ws-accent); outline: none; }
   .inbox-add-form button { background: var(--ws-accent); color: #000; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 
+  /* ── Phase 4b: Intel filter bar + importance/category badges ─── */
+  .intel-filterbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; }
+  .intel-source-tabs { display: flex; gap: 4px; }
+  .intel-source-tab { padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); background: transparent; border: 1px solid var(--border-subtle); border-radius: 6px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .intel-source-tab.active { color: var(--ws-accent); border-color: var(--ws-accent); background: rgba(var(--ws-accent-rgb), 0.08); }
+  .intel-filter-select { background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-family: 'IBM Plex Sans', sans-serif; }
+  .intel-filter-search { flex: 1; min-width: 180px; background: var(--bg-void); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-family: 'IBM Plex Sans', sans-serif; }
+  .intel-filter-search:focus, .intel-filter-select:focus { border-color: var(--ws-accent); outline: none; }
+  .intel-filter-clear { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted); padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .intel-filter-clear:hover { color: var(--text-primary); }
+
+  .inbox-importance { font-size: 10px; padding: 1px 7px; border-radius: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .inbox-importance.hot       { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+  .inbox-importance.notable   { background: rgba(212,175,55,0.15); color: #D4AF37; border: 1px solid rgba(212,175,55,0.35); }
+  .inbox-importance.reference { background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+  .inbox-category { font-size: 10px; padding: 1px 7px; border-radius: 3px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-subtle); }
+
   /* ── Documents (Phase 2, OC MC parity) ─────────────────────────── */
   .doc-list { display: flex; flex-direction: column; gap: 6px; }
   .doc-empty { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 48px; text-align: center; }
@@ -1108,23 +1125,43 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   </div>
 </section>
 
-<!-- Phase 7: Intel Inbox -->
-<section id="inbox-panel" class="glass-card ws-panel mt-5" data-cc-page="inbox">
-  <div class="ws-panel-header">
-    <div>
-      <div class="ws-panel-title">Intel Inbox</div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Paste a URL or forward one to Telegram. Auto-extracts + summarises + tags.</div>
-    </div>
-    <div style="display:flex;gap:6px;">
-      <button class="ws-panel-add" onclick="ccInboxSetFilter('unread')" id="inbox-filter-unread">Unread</button>
-      <button class="ws-panel-add" onclick="ccInboxSetFilter('all')" id="inbox-filter-all">All</button>
-    </div>
-  </div>
+<!-- Phase 4b: Intel Pipeline -->
+<section id="inbox-panel" class="mt-2" data-cc-page="inbox">
   <form class="inbox-add-form" onsubmit="ccInboxSubmit(event)">
-    <input type="text" id="inbox-url-input" placeholder="https://..." />
-    <input type="text" id="inbox-text-input" placeholder="or paste text" />
+    <input type="text" id="inbox-url-input" placeholder="Paste a URL (article or YouTube)…" />
+    <input type="text" id="inbox-text-input" placeholder="…or paste raw text" />
     <button type="submit">Ingest</button>
   </form>
+  <div class="intel-filterbar">
+    <div class="intel-source-tabs" id="intel-source-tabs">
+      <button type="button" class="intel-source-tab active" data-source="all" onclick="ccInboxSetSource('all')">All</button>
+      <button type="button" class="intel-source-tab" data-source="url" onclick="ccInboxSetSource('url')">Articles</button>
+      <button type="button" class="intel-source-tab" data-source="youtube" onclick="ccInboxSetSource('youtube')">YouTube</button>
+      <button type="button" class="intel-source-tab" data-source="text" onclick="ccInboxSetSource('text')">Text</button>
+    </div>
+    <select class="intel-filter-select" id="intel-importance" onchange="ccInboxRefilter()">
+      <option value="">All importance</option>
+      <option value="hot">Hot</option>
+      <option value="notable">Notable</option>
+      <option value="reference">Reference</option>
+    </select>
+    <select class="intel-filter-select" id="intel-category" onchange="ccInboxRefilter()">
+      <option value="">All categories</option>
+      <option value="ai_news">AI News</option>
+      <option value="industry">Industry</option>
+      <option value="competitor">Competitor</option>
+      <option value="opportunity">Opportunity</option>
+      <option value="general">General</option>
+    </select>
+    <select class="intel-filter-select" id="intel-status" onchange="ccInboxRefilter()">
+      <option value="unread">Unread</option>
+      <option value="">All</option>
+      <option value="actioned">Actioned</option>
+      <option value="archived">Archived</option>
+    </select>
+    <input type="search" class="intel-filter-search" id="intel-search" placeholder="Search title + summary…" oninput="ccInboxSearchDebounce()">
+    <button type="button" class="intel-filter-clear" onclick="ccInboxClearFilters()">Clear</button>
+  </div>
   <div id="inbox-list" class="inbox-grid"></div>
 </section>
 
@@ -4970,54 +5007,118 @@ refreshWorkspacePanels = async function() {
   await ccLoadIdeas();
 };
 
-// ── Phase 7: Intel Inbox ───────────────────────────────────────────
+// ── Phase 4b: Intel Pipeline ────────────────────────────────────────
+// The filter bar holds the canonical state. ccInboxRefilter reads all
+// current selections, builds a query string, and refreshes the grid.
+let CC_INBOX_SOURCE = 'all';
+let CC_INBOX_SEARCH_TIMER = null;
+// Retained from earlier shape for the page-header "N unread" count.
 let CC_INBOX_FILTER = 'unread';
 
-function ccInboxSetFilter(filter) {
-  CC_INBOX_FILTER = filter;
-  document.getElementById('inbox-filter-unread').style.borderColor = filter === 'unread' ? 'var(--ws-accent)' : '';
-  document.getElementById('inbox-filter-unread').style.color = filter === 'unread' ? 'var(--ws-accent)' : '';
-  document.getElementById('inbox-filter-all').style.borderColor = filter === 'all' ? 'var(--ws-accent)' : '';
-  document.getElementById('inbox-filter-all').style.color = filter === 'all' ? 'var(--ws-accent)' : '';
+function ccInboxSetSource(src) {
+  CC_INBOX_SOURCE = src;
+  document.querySelectorAll('#intel-source-tabs .intel-source-tab').forEach((el) => {
+    el.classList.toggle('active', el.dataset.source === src);
+  });
+  ccInboxRefilter();
+}
+
+function ccInboxRefilter() {
+  ccLoadInbox();
+}
+
+function ccInboxSearchDebounce() {
+  if (CC_INBOX_SEARCH_TIMER) clearTimeout(CC_INBOX_SEARCH_TIMER);
+  CC_INBOX_SEARCH_TIMER = setTimeout(() => ccLoadInbox(), 200);
+}
+
+function ccInboxClearFilters() {
+  CC_INBOX_SOURCE = 'all';
+  document.querySelectorAll('#intel-source-tabs .intel-source-tab').forEach((el) => {
+    el.classList.toggle('active', el.dataset.source === 'all');
+  });
+  const importance = document.getElementById('intel-importance');
+  const category = document.getElementById('intel-category');
+  const status = document.getElementById('intel-status');
+  const search = document.getElementById('intel-search');
+  if (importance) importance.value = '';
+  if (category) category.value = '';
+  if (status) status.value = 'unread';
+  if (search) search.value = '';
   ccLoadInbox();
 }
 
 async function ccLoadInbox() {
   const list = document.getElementById('inbox-list');
   if (!list) return;
+  const params = new URLSearchParams();
+  const importance = (document.getElementById('intel-importance') || {}).value || '';
+  const category = (document.getElementById('intel-category') || {}).value || '';
+  const statusEl = document.getElementById('intel-status');
+  const status = statusEl ? statusEl.value : 'unread';
+  const search = ((document.getElementById('intel-search') || {}).value || '').trim();
+  if (status) params.set('status', status);
+  if (importance) params.set('importance', importance);
+  if (category) params.set('category', category);
+  if (search) params.set('q', search);
+  if (CC_INBOX_SOURCE && CC_INBOX_SOURCE !== 'all') params.set('source', CC_INBOX_SOURCE);
+  const qs = params.toString();
+  CC_INBOX_FILTER = status || 'all';
   try {
-    const qs = CC_INBOX_FILTER === 'unread' ? '?status=unread' : '';
-    const r = await fetch('/api/inbox' + qs);
+    const r = await fetch('/api/inbox' + (qs ? ('?' + qs) : ''));
     const data = await r.json();
     const items = (data.items || []);
-    if (CC_INBOX_FILTER === 'unread') {
+    if (status === 'unread') {
       window.CC_INBOX_COUNT = items.length;
       if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
     }
     if (items.length === 0) {
-      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:16px 0;grid-column:1/-1;text-align:center;">No items. Forward a URL to Telegram or paste one above.</div>';
+      const hasFilters = !!(document.getElementById('intel-importance')?.value
+        || document.getElementById('intel-category')?.value
+        || (document.getElementById('intel-search')?.value || '').trim()
+        || CC_INBOX_SOURCE !== 'all');
+      const msg = hasFilters
+        ? 'No items match the current filters.'
+        : 'No items yet. Paste a URL above or forward one via Telegram (/intel).';
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:18px 0;grid-column:1/-1;text-align:center;">' + msg + '</div>';
       return;
     }
-    list.innerHTML = items.map(it => {
+    const categoryLabels = { ai_news: 'AI News', industry: 'Industry', competitor: 'Competitor', opportunity: 'Opportunity', general: 'General' };
+    list.innerHTML = items.map((it) => {
       let tags = [];
       try { tags = JSON.parse(it.tags_json || '[]'); } catch {}
-      const [firstLine, ...restLines] = (it.summary || it.raw_text || '').split('\\n');
-      const title = firstLine.slice(0, 120) || '(no title)';
-      const body = restLines.join('\\n').trim().slice(0, 400);
-      const urlLink = it.source_url ? '<a class="inbox-card-link" href="' + ccEscapeHtml(it.source_url) + '" target="_blank" rel="noopener">' + ccEscapeHtml(new URL(it.source_url).hostname) + '</a>' : '';
+      const title = (it.title && String(it.title).trim())
+        || ((it.summary || it.raw_text || '').split(/\\r?\\n/)[0] || '').trim().slice(0, 120)
+        || '(no title)';
+      const body = (it.summary || it.raw_text || '').trim().slice(0, 400);
+      const urlHost = (() => {
+        if (!it.source_url) return '';
+        try { return new URL(it.source_url).hostname; } catch { return it.source_url.slice(0, 40); }
+      })();
+      const urlLink = urlHost ? '<a class="inbox-card-link" href="' + ccEscapeHtml(it.source_url) + '" target="_blank" rel="noopener">' + ccEscapeHtml(urlHost) + '</a>' : '';
       const date = new Date(it.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const readCls = it.status !== 'unread' ? ' read' : '';
+      const impBadge = it.importance
+        ? '<span class="inbox-importance ' + ccEscapeHtml(it.importance) + '">' + ccEscapeHtml(it.importance) + '</span>'
+        : '';
+      const catBadge = it.category
+        ? '<span class="inbox-category">' + ccEscapeHtml(categoryLabels[it.category] || it.category) + '</span>'
+        : '';
+      const srcBadge = it.source_type
+        ? '<span class="inbox-category">' + ccEscapeHtml(it.source_type) + '</span>'
+        : '';
       return '<div class="inbox-card' + readCls + '" data-id="' + it.id + '">' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' + impBadge + catBadge + srcBadge + '</div>' +
         '<div class="inbox-card-title">' + ccEscapeHtml(title) + '</div>' +
         (body ? '<div class="inbox-card-summary">' + ccEscapeHtml(body) + '</div>' : '') +
-        (tags.length > 0 ? '<div class="inbox-tags">' + tags.map(t => '<span class="inbox-tag">' + ccEscapeHtml(t) + '</span>').join('') + '</div>' : '') +
+        (tags.length > 0 ? '<div class="inbox-tags">' + tags.map((t) => '<span class="inbox-tag">' + ccEscapeHtml(t) + '</span>').join('') + '</div>' : '') +
         '<div class="inbox-card-meta"><span>' + date + '</span>' + (urlLink ? '<span>' + urlLink + '</span>' : '') + '</div>' +
         '<div class="inbox-card-actions">' +
-        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'task\\')">→ Task</button>' +
-        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'note\\')">→ Note</button>' +
-        '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'archive\\')">Dismiss</button>' +
+          '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'task\\')">→ Task</button>' +
+          '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'note\\')">→ Note</button>' +
+          '<button class="inbox-action" onclick="ccInboxAction(' + it.id + ', \\'archive\\')">Dismiss</button>' +
         '</div>' +
-        '</div>';
+      '</div>';
     }).join('');
   } catch (err) { console.warn('ccLoadInbox failed', err); }
 }

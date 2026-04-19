@@ -368,14 +368,81 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-pill.event .cal-pill-time { color: #a5b4fc; }
   .cal-cell.has-events { background: rgba(255,255,255,0.03); cursor: pointer; }
   .cal-cell.has-events:hover { border-color: rgba(var(--ws-accent-rgb), 0.4); }
-  /* Week view — minimum per-day width so cells stay usable when the day panel is open */
-  #cal-grid-card { overflow-x: auto; }
-  .cal-week-grid { display: grid; grid-template-columns: 60px repeat(7, minmax(80px, 1fr)); gap: 4px; min-width: 620px; }
-  .cal-week-dayhead { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding: 6px 0; }
-  .cal-week-dayhead.today-col { color: var(--ws-accent); }
-  .cal-week-hour-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); padding: 6px 4px; text-align: right; border-right: 1px solid var(--border-subtle); }
-  .cal-week-cell { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 4px; min-height: 42px; padding: 2px 3px; display: flex; flex-direction: column; gap: 2px; cursor: crosshair; }
-  .cal-week-cell.today-col { background: rgba(var(--ws-accent-rgb), 0.03); }
+  /* Week view — fits all 7 days on typical desktops; horizontal scroll only
+     kicks in below ~860px content width. Sizing tuned so a 720px content
+     area gives ~85px per day column. */
+  #cal-grid-card { overflow-x: auto; padding: 14px 14px 18px; }
+  .cal-week-grid {
+    display: grid;
+    grid-template-columns: 56px repeat(7, minmax(72px, 1fr));
+    gap: 3px;
+    min-width: 560px;
+  }
+  .cal-week-dayhead {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    line-height: 1.15;
+  }
+  .cal-week-dayhead-wk {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .cal-week-dayhead-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px; font-weight: 600; color: var(--text-primary);
+    margin-top: 2px;
+  }
+  .cal-week-dayhead.today-col .cal-week-dayhead-wk { color: var(--ws-accent); }
+  .cal-week-dayhead.today-col .cal-week-dayhead-num {
+    color: var(--ws-accent);
+    background: rgba(var(--ws-accent-rgb), 0.12);
+    border-radius: 999px;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .cal-week-hour-label {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    padding: 4px 6px 0 0;
+    text-align: right;
+    border-right: 1px solid var(--border-subtle);
+    min-height: 54px;
+  }
+  .cal-week-cell {
+    position: relative;
+    background: rgba(255,255,255,0.015);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    min-height: 54px;
+    padding: 3px 4px;
+    display: flex; flex-direction: column; gap: 2px;
+    cursor: copy;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .cal-week-cell:hover {
+    background: rgba(var(--ws-accent-rgb), 0.06);
+    border-color: rgba(var(--ws-accent-rgb), 0.3);
+  }
+  /* subtle + hint on empty hover so users know the cell is clickable */
+  .cal-week-cell:empty:hover::after {
+    content: '+';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: rgba(var(--ws-accent-rgb), 0.5);
+    pointer-events: none;
+  }
+  .cal-week-cell.today-col { background: rgba(var(--ws-accent-rgb), 0.035); }
+  .cal-week-cell.now-hour::before {
+    content: '';
+    position: absolute; top: -1px; left: 0; right: 0;
+    height: 2px;
+    background: var(--ws-accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(var(--ws-accent-rgb), 0.4);
+    pointer-events: none;
+  }
   /* Day detail side panel — only claim sidebar space on wide desktops so the
      grid doesn't get squeezed. Below 1280px the panel stacks under the grid. */
   .cal-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -4680,14 +4747,19 @@ async function ccCalRenderWeek() {
     console.warn('ccCalRenderWeek events fetch failed', err);
     CC_CAL_EVENTS = [];
   }
-  const todayKey = new Date().toISOString().slice(0, 10);
-  // Header row: empty corner + day headers
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  const nowHour = now.getHours();
+  // Header row: empty corner + day headers (stacked weekday + day-number)
   const headers = days.map((d) => {
     const key = d.toISOString().slice(0, 10);
     const classes = ['cal-week-dayhead'];
     if (key === todayKey) classes.push('today-col');
-    const lab = d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.getDate();
-    return '<div class="' + classes.join(' ') + '">' + ccEscapeHtml(lab) + '</div>';
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+    return '<div class="' + classes.join(' ') + '">' +
+      '<span class="cal-week-dayhead-wk">' + ccEscapeHtml(weekday) + '</span>' +
+      '<span class="cal-week-dayhead-num">' + d.getDate() + '</span>' +
+    '</div>';
   }).join('');
   const rows = [];
   rows.push('<div></div>' + headers);
@@ -4703,10 +4775,12 @@ async function ccCalRenderWeek() {
       const pills = cellEvents.map((ev) => {
         const d = new Date(ev.start_time * 1000);
         const hhmm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-        return '<div class="cal-pill event" onclick="ccCalOpenEvent(' + ev.id + ')" title="' + ccEscapeHtml(ev.title) + '"><span class="cal-pill-time">' + hhmm + '</span>' + ccEscapeHtml(ev.title.slice(0, 26)) + '</div>';
+        return '<div class="cal-pill event" onclick="event.stopPropagation();ccCalOpenEvent(' + ev.id + ')" title="' + ccEscapeHtml(ev.title) + '"><span class="cal-pill-time">' + hhmm + '</span>' + ccEscapeHtml(ev.title.slice(0, 26)) + '</div>';
       }).join('');
-      const todayCls = dayKey === todayKey ? ' today-col' : '';
-      row += '<div class="cal-week-cell' + todayCls + '" onclick="ccCalNewEventAtHour(\\'' + dayKey + '\\',' + h + ')">' + pills + '</div>';
+      const classes = ['cal-week-cell'];
+      if (dayKey === todayKey) classes.push('today-col');
+      if (dayKey === todayKey && h === nowHour) classes.push('now-hour');
+      row += '<div class="' + classes.join(' ') + '" onclick="ccCalNewEventAtHour(\\'' + dayKey + '\\',' + h + ')">' + pills + '</div>';
     }
     rows.push(row);
   }

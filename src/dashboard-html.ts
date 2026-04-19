@@ -1553,7 +1553,7 @@ const CC_PAGE_META = {
                    cta: { label: '✕ New Chat', handler: "sendQuickAction('/newchat')" } },
   'dashboard':   { title: 'Dashboard',     subtitleFn: () => 'Portfolio overview' },
   'mission':     { title: 'Mission Board', subtitleFn: () => 'Tasks and assignments',
-                   cta: { label: '+ New Task',     handler: "ccQuickAddOpen('task')" } },
+                   cta: { label: '+ New Task',     handler: 'openMissionModal()' } },
   'priorities':  { title: 'Priorities',    subtitleFn: () => (window.CC_PRIORITIES_COUNT != null ? (window.CC_PRIORITIES_COUNT + ' open') : 'What matters this week'),
                    cta: { label: '+ Add Priority', handler: 'ccShowPriorityInput()' } },
   'ideas':       { title: 'Ideas',         subtitleFn: () => 'Second brain',

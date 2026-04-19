@@ -278,10 +278,19 @@ const WARROOM_ENABLED = warroomEnabled;
   .cc-page-hidden { display: none !important; }
 
   /* Page header shown above the current page's content */
-  .cc-page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
-  .cc-page-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); }
-  .cc-page-subtitle { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-  .cc-ws-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(var(--ws-accent-rgb), 0.12); color: var(--ws-accent); font-size: 11px; font-weight: 600; font-family: 'Bricolage Grotesque', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; }
+  /* Page header — matches OC MC: big title left, CTA right, meta subline under title */
+  .cc-page-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
+  .cc-page-header-main { flex: 1; min-width: 0; }
+  .cc-page-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cc-page-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); line-height: 1.1; }
+  .cc-page-meta { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .cc-page-subtitle { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .cc-ws-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(var(--ws-accent-rgb), 0.12); color: var(--ws-accent); font-size: 11px; font-weight: 600; font-family: 'Bricolage Grotesque', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid rgba(var(--ws-accent-rgb), 0.3); }
+  /* Gold CTA on page header — matches OC MC "+ New Document" button */
+  .cc-page-cta { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border: none; border-radius: 4px; background: var(--accent-gold); color: var(--bg-primary); font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: filter 0.15s, transform 0.15s; white-space: nowrap; }
+  .cc-page-cta:hover { filter: brightness(1.1); }
+  .cc-page-cta:active { transform: translateY(1px); }
+  .cc-page-cta.hidden { display: none; }
 
   /* ── Phase 3: Workspace home (priorities, quick links, core memory) ─ */
   .ws-home-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
@@ -448,9 +457,16 @@ const WARROOM_ENABLED = warroomEnabled;
 
 <!-- Page header (populated by JS on page switch) -->
 <div class="cc-page-header" id="cc-page-header">
-  <div class="cc-page-title" id="cc-page-title">Dashboard</div>
-  <div class="cc-ws-pill" id="cc-ws-pill"><span id="cc-ws-pill-icon">🌐</span><span id="cc-ws-pill-name">Cross-Business</span></div>
-  <div class="cc-page-subtitle" id="cc-page-subtitle" style="margin-left:auto;"></div>
+  <div class="cc-page-header-main">
+    <h1 class="cc-page-title" id="cc-page-title">Dashboard</h1>
+    <div class="cc-page-meta">
+      <span class="cc-page-subtitle" id="cc-page-subtitle">Portfolio overview</span>
+      <span class="cc-ws-pill" id="cc-ws-pill"><span id="cc-ws-pill-icon">🌐</span><span id="cc-ws-pill-name">Cross-Business</span></span>
+    </div>
+  </div>
+  <div class="cc-page-header-right">
+    <button type="button" class="cc-page-cta hidden" id="cc-page-cta"></button>
+  </div>
 </div>
 
 <!-- Summary Stats Bar -->
@@ -476,10 +492,6 @@ const WARROOM_ENABLED = warroomEnabled;
 <!-- Phase 3: Workspace home (priorities + quick links) — now split across
      two pages. Priorities is its own page; Quick Links stays on Dashboard. -->
 <section id="priorities-panel" class="glass-card ws-panel" data-cc-page="priorities" style="margin-bottom:16px;">
-  <div class="ws-panel-header">
-    <div class="ws-panel-title">Top Priorities</div>
-    <button class="ws-panel-add" onclick="ccShowPriorityInput()">+ Add</button>
-  </div>
   <div id="priorities-list"></div>
   <input type="text" id="priority-input" class="priority-input" placeholder="What's important?" style="display:none" onkeydown="if(event.key==='Enter'){ccSubmitPriority();event.preventDefault();}if(event.key==='Escape'){ccCancelPriorityInput();}">
 </section>
@@ -1097,26 +1109,62 @@ const CC_NAV_GROUPS = [
     { id: 'daily-brief', page: 'daily-brief', icon: '🌅', label: 'Daily Brief' },
   ]},
   { label: 'INTELLIGENCE', items: [
-    { id: 'inbox',  page: 'inbox',  icon: '📡', label: 'Intel Inbox' },
+    { id: 'inbox',  page: 'inbox',  icon: '📡', label: 'Intel Pipeline' },
     { id: 'hive',   page: 'hive',   icon: '🔍', label: 'Hive Mind' },
     { id: 'memory', page: 'memory', icon: '🧠', label: 'Memory' },
   ]},
 ];
 
+// Page metadata drives the big header at the top of each page.
+// - subtitleFn(): returns the live subtitle (e.g. "3 open priorities"). Runs on every page show + after data refresh.
+// - cta: optional { label, handler } for the gold button top-right. handler is a string of JS invoked on click.
 const CC_PAGE_META = {
-  'dashboard':   { title: 'Dashboard',     subtitle: 'Portfolio overview' },
-  'mission':     { title: 'Mission Board', subtitle: 'Tasks and assignments' },
-  'priorities':  { title: 'Priorities',    subtitle: 'What matters this week' },
-  'ideas':       { title: 'Ideas',         subtitle: 'Second brain' },
-  'documents':   { title: 'Documents',     subtitle: 'Templates and renders' },
-  'calendar':    { title: 'Calendar',      subtitle: 'Scheduled work' },
-  'daily-brief': { title: 'Daily Brief',   subtitle: 'Chief-of-staff summary' },
-  'inbox':       { title: 'Intel Inbox',   subtitle: 'Forwarded reads' },
-  'hive':        { title: 'Hive Mind',     subtitle: 'Cross-agent feed' },
-  'memory':      { title: 'Memory',        subtitle: 'Pinned · Semantic · Consolidations' },
+  'dashboard':   { title: 'Dashboard',     subtitleFn: () => 'Portfolio overview' },
+  'mission':     { title: 'Mission Board', subtitleFn: () => 'Tasks and assignments',
+                   cta: { label: '+ New Task',     handler: "ccQuickAddOpen('task')" } },
+  'priorities':  { title: 'Priorities',    subtitleFn: () => (window.CC_PRIORITIES_COUNT != null ? (window.CC_PRIORITIES_COUNT + ' open') : 'What matters this week'),
+                   cta: { label: '+ Add Priority', handler: 'ccShowPriorityInput()' } },
+  'ideas':       { title: 'Ideas',         subtitleFn: () => 'Second brain',
+                   cta: { label: '+ New Idea',     handler: 'ccShowIdeaForm()' } },
+  'documents':   { title: 'Documents',     subtitleFn: () => (window.CC_DOCUMENTS_COUNT != null ? (window.CC_DOCUMENTS_COUNT + ' saved documents') : 'Templates and renders'),
+                   cta: { label: '+ New Document', handler: 'ccDocNew()' } },
+  'calendar':    { title: 'Calendar',      subtitleFn: () => 'Scheduled work' },
+  'daily-brief': { title: 'Daily Brief',   subtitleFn: () => 'Chief-of-staff summary',
+                   cta: { label: '📨 Send Now',    handler: 'ccRunDailyBrief()' } },
+  'inbox':       { title: 'Intel Pipeline',subtitleFn: () => (window.CC_INBOX_COUNT != null ? (window.CC_INBOX_COUNT + ' unread') : 'Forwarded reads') },
+  'hive':        { title: 'Hive Mind',     subtitleFn: () => 'Cross-agent feed' },
+  'memory':      { title: 'Memory',        subtitleFn: () => 'Pinned facts · Semantic · Consolidations' },
 };
 
 let CC_ACTIVE_PAGE = 'dashboard';
+
+// Renders the big page header (title, subtitle, workspace pill, CTA) for
+// the currently-active page. Called from ccShowPage (on nav change) and
+// from data loaders (so subtitle counts like "3 open priorities" update
+// as data refreshes).
+function ccRenderPageHeader() {
+  const meta = CC_PAGE_META[CC_ACTIVE_PAGE];
+  if (!meta) return;
+  const titleEl = document.getElementById('cc-page-title');
+  const subEl = document.getElementById('cc-page-subtitle');
+  const ctaEl = document.getElementById('cc-page-cta');
+  if (titleEl) titleEl.textContent = meta.title;
+  if (subEl) {
+    try { subEl.textContent = typeof meta.subtitleFn === 'function' ? meta.subtitleFn() : (meta.subtitle || ''); }
+    catch { subEl.textContent = meta.subtitle || ''; }
+  }
+  if (ctaEl) {
+    if (meta.cta && meta.cta.label) {
+      ctaEl.textContent = meta.cta.label;
+      ctaEl.setAttribute('onclick', meta.cta.handler || '');
+      ctaEl.classList.remove('hidden');
+    } else {
+      ctaEl.textContent = '';
+      ctaEl.removeAttribute('onclick');
+      ctaEl.classList.add('hidden');
+    }
+  }
+}
 
 function ccShowPage(pageId) {
   if (!CC_PAGE_META[pageId]) return;
@@ -1125,12 +1173,8 @@ function ccShowPage(pageId) {
     const pages = (el.getAttribute('data-cc-page') || '').split(/\\s+/).filter(Boolean);
     el.classList.toggle('cc-page-hidden', !pages.includes(pageId));
   });
-  // Update header
-  const meta = CC_PAGE_META[pageId];
-  const title = document.getElementById('cc-page-title');
-  const sub = document.getElementById('cc-page-subtitle');
-  if (title) title.textContent = meta.title;
-  if (sub) sub.textContent = meta.subtitle;
+  // Update page header — title + subtitle + gold CTA (if any)
+  ccRenderPageHeader();
   // Update active state on nav rows
   document.querySelectorAll('.cc-sidebar-row.page').forEach(el => {
     el.classList.toggle('active-page', el.dataset.page === pageId);
@@ -3575,6 +3619,8 @@ async function ccLoadPriorities() {
     const r = await fetch('/api/priorities');
     const data = await r.json();
     const rows = (data.priorities || []);
+    window.CC_PRIORITIES_COUNT = rows.filter(p => !p.done).length;
+    if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
     if (rows.length === 0) {
       list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No priorities yet. Click + Add.</div>';
       return;
@@ -3919,6 +3965,8 @@ async function ccLoadDocuments() {
     const r = await fetch('/api/templates');
     const data = await r.json();
     const tpls = (data.templates || []);
+    window.CC_DOCUMENTS_COUNT = tpls.length;
+    if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
     if (tpls.length === 0) {
       list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No templates yet. Click "New Template".</div>';
       return;
@@ -4015,6 +4063,10 @@ async function ccLoadInbox() {
     const r = await fetch('/api/inbox' + qs);
     const data = await r.json();
     const items = (data.items || []);
+    if (CC_INBOX_FILTER === 'unread') {
+      window.CC_INBOX_COUNT = items.length;
+      if (typeof ccRenderPageHeader === 'function') ccRenderPageHeader();
+    }
     if (items.length === 0) {
       list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:16px 0;grid-column:1/-1;text-align:center;">No items. Forward a URL to Telegram or paste one above.</div>';
       return;

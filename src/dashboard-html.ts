@@ -277,6 +277,15 @@ const WARROOM_ENABLED = warroomEnabled;
      chat FAB, bot-info header) are always visible. */
   .cc-page-hidden { display: none !important; }
 
+  /* The legacy dashboard uses a 2-column grid (LEFT COLUMN + RIGHT COLUMN)
+     that only makes sense on the Dashboard page. Every other page lives
+     in the LEFT COLUMN and would otherwise render at 50% width with the
+     right half empty. Flatten the grid to a single column on non-dashboard
+     pages via a body attribute set from ccShowPage. */
+  body[data-cc-page]:not([data-cc-page="dashboard"]) .lg\:grid.lg\:grid-cols-2 {
+    display: block !important;
+  }
+
   /* Page header shown above the current page's content */
   /* Page header — matches OC MC: big title left, CTA right, meta subline under title */
   .cc-page-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
@@ -443,6 +452,12 @@ const WARROOM_ENABLED = warroomEnabled;
     box-shadow: 0 0 8px rgba(var(--ws-accent-rgb), 0.4);
     pointer-events: none;
   }
+  @keyframes cal-today-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(var(--ws-accent-rgb), 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(var(--ws-accent-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--ws-accent-rgb), 0); }
+  }
+  .cal-today-flash { animation: cal-today-pulse 0.65s ease-out; }
   /* Day detail side panel — only claim sidebar space on wide desktops so the
      grid doesn't get squeezed. Below 1280px the panel stacks under the grid. */
   .cal-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -1766,6 +1781,9 @@ function ccRenderPageHeader() {
 function ccShowPage(pageId) {
   if (!CC_PAGE_META[pageId]) return;
   CC_ACTIVE_PAGE = pageId;
+  // Set the active-page attribute on body so CSS rules can respond
+  // (e.g. flattening the legacy 2-col dashboard grid on other pages).
+  document.body.setAttribute('data-cc-page', pageId);
   document.querySelectorAll('[data-cc-page]').forEach(el => {
     const pages = (el.getAttribute('data-cc-page') || '').split(/\\s+/).filter(Boolean);
     el.classList.toggle('cc-page-hidden', !pages.includes(pageId));
@@ -4647,7 +4665,18 @@ function ccCalendarNext() {
   else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() + 1, 1);
   ccLoadCalendar();
 }
-function ccCalendarToday() { CC_CAL_ANCHOR = new Date(); ccLoadCalendar(); }
+async function ccCalendarToday() {
+  CC_CAL_ANCHOR = new Date();
+  await ccLoadCalendar();
+  // Give visible feedback even when we were already on today's week — flash
+  // the today column + day-header so the click feels responsive.
+  setTimeout(() => {
+    document.querySelectorAll('.cal-week-dayhead.today-col, .cal-cell.today, .cal-week-cell.today-col').forEach((el) => {
+      el.classList.add('cal-today-flash');
+      setTimeout(() => el.classList.remove('cal-today-flash'), 700);
+    });
+  }, 30);
+}
 
 function ccCalUpdateViewButtons() {
   const m = document.getElementById('cal-view-month');

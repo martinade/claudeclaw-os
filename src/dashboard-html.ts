@@ -119,6 +119,7 @@ const WARROOM_ENABLED = warroomEnabled;
   .gauge-bg { fill: #2a2a2a; }
   .refresh-spin { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse-rec { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
   /* Privacy blur */
   .privacy-blur { filter: blur(5px); cursor: pointer; transition: filter 0.2s; user-select: none; }
   .privacy-blur:hover { filter: blur(3px); }
@@ -208,8 +209,11 @@ const WARROOM_ENABLED = warroomEnabled;
   .chat-bubble-assistant { background: #1e1e1e; color: #d4d4d8; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #2a2a2a; min-width: 0; }
   .chat-bubble-source { font-size: 10px; color: #6b7280; margin-top: 4px; }
   .chat-bubble code { background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-size: 13px; }
-  .chat-bubble pre { background: #111; padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-size: 12px; }
+  .chat-bubble pre { background: #111; padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-size: 12px; position: relative; }
   .chat-bubble pre code { background: none; padding: 0; }
+  .chat-bubble pre .code-copy-btn { position: absolute; top: 4px; right: 4px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #9ca3af; border-radius: 4px; padding: 3px 7px; font-size: 11px; cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s; font-family: 'Bricolage Grotesque', sans-serif; z-index: 1; }
+  .chat-bubble pre:hover .code-copy-btn { opacity: 1; }
+  .chat-bubble pre .code-copy-btn:hover { background: rgba(255,255,255,0.16); color: #e5e7eb; }
   .chat-bubble table { border-collapse: collapse; width: 100%; font-size: 11px; margin: 6px 0; display: block; overflow-x: auto; }
   .chat-bubble th, .chat-bubble td { padding: 3px 6px; border-bottom: 1px solid #2a2a2a; text-align: left; white-space: nowrap; }
   .chat-bubble th { color: #a5b4fc; font-weight: 600; }
@@ -222,11 +226,32 @@ const WARROOM_ENABLED = warroomEnabled;
   .chat-stop-btn:hover { background: #4f46e5; color: #fff; }
   .chat-progress-shimmer { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; background: linear-gradient(90deg, transparent, #4f46e5, transparent); animation: shimmer 2s ease-in-out infinite; }
   @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-  .chat-input-area { display: flex; gap: 8px; padding: 12px 16px; background: #141414; border-top: 1px solid #2a2a2a; flex-shrink: 0; }
-  .chat-textarea { flex: 1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; color: #e0e0e0; padding: 10px 14px; font-size: 14px; resize: none; outline: none; max-height: 120px; font-family: inherit; }
+  .chat-input-area { display: flex; gap: 8px; padding: 12px 16px; background: #141414; border-top: 1px solid #2a2a2a; flex-shrink: 0; align-items: flex-end; }
+  .chat-input-wrap { flex: 1; position: relative; display: flex; flex-direction: column; gap: 6px; }
+  .chat-textarea { width: 100%; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; color: #e0e0e0; padding: 10px 14px; font-size: 14px; resize: none; outline: none; max-height: 120px; font-family: inherit; box-sizing: border-box; }
   .chat-textarea:focus { border-color: #4f46e5; }
-  .chat-send-btn { background: #4f46e5; color: #fff; border: none; border-radius: 12px; padding: 0 16px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.15s; flex-shrink: 0; }
+  .chat-attach-btn { background: none; border: 1px solid #2a2a2a; color: #6b7280; border-radius: 12px; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .chat-attach-btn:hover { border-color: #4f46e5; color: #a5b4fc; }
+  .chat-send-btn { background: #4f46e5; color: #fff; border: none; border-radius: 12px; padding: 0 16px; height: 42px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.15s; flex-shrink: 0; }
   .chat-send-btn:hover { background: #4338ca; }
+  .chat-file-preview { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px; font-size: 12px; color: #9ca3af; }
+  .chat-file-preview img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+  .chat-file-preview .remove-file { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .chat-bubble img { max-width: 100%; border-radius: 8px; margin: 6px 0; cursor: pointer; transition: opacity 0.15s; }
+  .chat-bubble img:hover { opacity: 0.85; }
+  .chat-bubble .chat-file-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(79,70,229,0.15); border: 1px solid rgba(79,70,229,0.3); border-radius: 8px; color: #a5b4fc; text-decoration: none; font-size: 13px; margin: 4px 0; }
+  .chat-bubble .chat-file-link:hover { background: rgba(79,70,229,0.25); }
+  .chat-msg-wrap { position: relative; display: flex; flex-direction: column; max-width: 90%; }
+  .chat-msg-wrap.user-wrap { align-self: flex-end; }
+  .chat-msg-wrap.assistant-wrap { align-self: flex-start; }
+  .chat-msg-wrap .chat-bubble { max-width: 100%; align-self: stretch; }
+  .chat-msg-copy-btn { position: absolute; top: -2px; right: -32px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #6b7280; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s; z-index: 2; font-size: 13px; padding: 0; }
+  .chat-msg-wrap:hover .chat-msg-copy-btn { opacity: 1; }
+  .chat-msg-copy-btn:hover { background: rgba(255,255,255,0.14); color: #e5e7eb; }
+  .chat-msg-copy-btn.copied { color: #22c55e; border-color: rgba(34,197,94,0.3); }
+  .chat-msg-wrap.user-wrap .chat-msg-copy-btn { right: auto; left: -32px; }
+  .chat-drop-overlay { display: none; position: absolute; inset: 0; background: rgba(79,70,229,0.15); border: 2px dashed #4f46e5; border-radius: 12px; z-index: 80; align-items: center; justify-content: center; color: #a5b4fc; font-size: 18px; font-weight: 600; pointer-events: none; }
+  .chat-drop-overlay.active { display: flex; }
   .chat-send-btn:disabled { background: #2a2a2a; color: #666; cursor: not-allowed; }
 
   /* ── Workspace sidebar (Phase 2) ─────────────────────────────── */
@@ -282,8 +307,12 @@ const WARROOM_ENABLED = warroomEnabled;
      in the LEFT COLUMN and would otherwise render at 50% width with the
      right half empty. Flatten the grid to a single column on non-dashboard
      pages via a body attribute set from ccShowPage. */
-  body[data-cc-page]:not([data-cc-page="dashboard"]) .lg\:grid.lg\:grid-cols-2 {
+  body[data-cc-page]:not([data-cc-page="dashboard"]) .lg\\:grid.lg\\:grid-cols-2 {
     display: block !important;
+  }
+  /* Dashboard 2-col grid keeps a max width; all other pages go full width */
+  body[data-cc-page="dashboard"] .lg\\:grid.lg\\:grid-cols-2 {
+    max-width: 1152px;
   }
 
   /* Page header shown above the current page's content */
@@ -375,6 +404,9 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-more { font-size: 10px; color: var(--text-muted); padding: 0 4px; }
   .cal-pill.event { background: rgba(99,102,241,0.14); border-left-color: #6366f1; }
   .cal-pill.event .cal-pill-time { color: #a5b4fc; }
+  .cal-pill.mission { background: rgba(251,191,36,0.12); border-left-color: #fbbf24; cursor: pointer; }
+  .cal-pill.mission:hover { background: rgba(251,191,36,0.22); }
+  .cal-pill.mission .cal-pill-time { color: #fcd34d; }
   .cal-cell.has-events { background: rgba(255,255,255,0.03); cursor: pointer; }
   .cal-cell.has-events:hover { border-color: rgba(var(--ws-accent-rgb), 0.4); }
   /* Week view — fits all 7 days on typical desktops; horizontal scroll only
@@ -414,19 +446,19 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-week-hour-label {
     font-size: 10px; font-family: 'JetBrains Mono', monospace;
     color: var(--text-muted);
-    padding: 4px 6px 0 0;
+    padding: 2px 6px 0 0;
     text-align: right;
     border-right: 1px solid var(--border-subtle);
-    min-height: 54px;
+    min-height: 40px;
   }
   .cal-week-cell {
     position: relative;
     background: rgba(255,255,255,0.015);
     border: 1px solid var(--border-subtle);
     border-radius: 4px;
-    min-height: 54px;
-    padding: 3px 4px;
-    display: flex; flex-direction: column; gap: 2px;
+    min-height: 40px;
+    padding: 2px 3px;
+    display: flex; flex-direction: column; gap: 1px;
     cursor: copy;
     transition: background 0.15s, border-color 0.15s;
   }
@@ -458,6 +490,87 @@ const WARROOM_ENABLED = warroomEnabled;
     100% { box-shadow: 0 0 0 0 rgba(var(--ws-accent-rgb), 0); }
   }
   .cal-today-flash { animation: cal-today-pulse 0.65s ease-out; }
+
+  /* Day view — single-column hourly layout */
+  .cal-day-grid {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 0;
+    min-width: 300px;
+  }
+  .cal-day-hour-label {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    padding: 4px 8px 0 0;
+    text-align: right;
+    border-right: 1px solid var(--border-subtle);
+    min-height: 42px;
+  }
+  .cal-day-hour-cell {
+    position: relative;
+    background: rgba(255,255,255,0.015);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    min-height: 42px;
+    padding: 3px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .cal-day-hour-cell:hover {
+    background: rgba(var(--ws-accent-rgb), 0.06);
+  }
+  .cal-day-hour-cell:empty:hover::after {
+    content: '+ Add event';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(var(--ws-accent-rgb), 0.5);
+    pointer-events: none;
+  }
+  .cal-day-hour-cell.now-hour {
+    background: rgba(var(--ws-accent-rgb), 0.05);
+  }
+  .cal-day-hour-cell.now-hour::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--ws-accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(var(--ws-accent-rgb), 0.4);
+    pointer-events: none;
+  }
+  .cal-day-event-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(var(--ws-accent-rgb), 0.12);
+    border: 1px solid rgba(var(--ws-accent-rgb), 0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .cal-day-event-pill:hover { background: rgba(var(--ws-accent-rgb), 0.2); }
+  .cal-day-event-pill .pill-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ws-accent);
+    font-weight: 600;
+  }
+  .cal-day-header-date {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 22px; font-weight: 700; color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .cal-day-header-date .day-badge {
+    background: rgba(var(--ws-accent-rgb), 0.15);
+    color: var(--ws-accent);
+    font-size: 12px; font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+  }
+
   /* Day detail side panel — only claim sidebar space on wide desktops so the
      grid doesn't get squeezed. Below 1280px the panel stacks under the grid. */
   .cal-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -470,6 +583,9 @@ const WARROOM_ENABLED = warroomEnabled;
   .cal-day-item-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
   .cal-day-item-meta { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
   .cal-day-item.cron { opacity: 0.75; }
+  .cal-day-item.mission { border-color: rgba(251,191,36,0.35); }
+  .cal-day-item.mission:hover { border-color: #fbbf24; }
+  .mk-card.mk-card-flash { box-shadow: 0 0 0 2px var(--ws-accent, #fbbf24), 0 0 24px rgba(251,191,36,0.45); transition: box-shadow 0.3s; }
   .cal-day-add-btn { background: transparent; border: 1px dashed var(--border-subtle); color: var(--text-muted); border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
   .cal-day-add-btn:hover { border-style: solid; color: var(--ws-accent); border-color: var(--ws-accent); }
   /* Event modal */
@@ -587,6 +703,9 @@ const WARROOM_ENABLED = warroomEnabled;
   .mtg-modal-foot .save { background: var(--accent-gold); color: var(--bg-primary); border-color: var(--accent-gold); }
   .mtg-modal-foot .del { color: var(--status-offline); border-color: rgba(239,68,68,0.35); }
   .mtg-modal-foot .voice { color: var(--accent-gold); border-color: rgba(212,175,55,0.4); }
+  .mtg-modal-foot .transcribe { color: #60a5fa; border-color: rgba(96,165,250,0.4); }
+  .mtg-modal-foot .transcribe:hover { background: rgba(96,165,250,0.12); }
+  .mtg-modal-foot .transcribe:disabled { opacity: 0.5; cursor: wait; }
 
   /* ── Mission Board Kanban (OC MC parity) ────────────────────────── */
   .mk-filterbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
@@ -595,6 +714,8 @@ const WARROOM_ENABLED = warroomEnabled;
   .mk-auto-assign { background: rgba(167,139,250,0.1); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .mk-history-btn { background: transparent; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 7px 10px; margin-left: auto; font-family: inherit; }
   .mk-history-btn:hover { color: var(--text-primary); }
+  .mk-history-chip { display: block; width: 100%; margin-top: 8px; padding: 8px 10px; background: rgba(34,197,94,0.06); border: 1px dashed rgba(34,197,94,0.35); border-radius: 6px; color: #4ade80; font-size: 11px; font-family: inherit; cursor: pointer; text-align: center; letter-spacing: 0.02em; }
+  .mk-history-chip:hover { background: rgba(34,197,94,0.12); color: #86efac; }
   .mk-board { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: start; min-height: 400px; }
   @media (max-width: 1100px) { .mk-board { grid-template-columns: 1fr; } }
   .mk-col { display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0 12px 12px; min-height: 340px; position: relative; overflow: hidden; }
@@ -629,6 +750,40 @@ const WARROOM_ENABLED = warroomEnabled;
   .mk-badge.date-chip.tone-soon    { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.35); }
   .mk-badge.date-chip.tone-near    { background: rgba(99,102,241,0.12); color: #a5b4fc; border-color: rgba(99,102,241,0.35); }
   .mk-badge.date-chip.tone-far     { background: rgba(255,255,255,0.04); color: var(--text-muted); border-color: var(--border-subtle); }
+  .mk-badge.date-edit-chip { cursor: pointer; }
+  .mk-badge.date-edit-chip:hover { filter: brightness(1.25); }
+  .mk-badge.date-chip-empty { opacity: 0.55; color: #cbd5e1; border-color: rgba(203,213,225,0.25); }
+  .mk-badge.date-chip-empty:hover { opacity: 0.95; }
+  .date-editor { display: inline-flex; align-items: center; gap: 3px; background: #141414; border: 1px solid var(--ws-accent, #4f46e5); border-radius: 4px; padding: 2px 4px; }
+  .date-chip-input { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 3px; padding: 2px 4px; color: #e0e0e0; font-size: 10px; font-family: inherit; outline: none; max-width: 160px; color-scheme: dark; }
+  .date-chip-input::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.4); cursor: pointer; opacity: 1; }
+  .date-editor-save,
+  .date-editor-cancel,
+  .date-editor-clear { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 1px 5px; font-size: 10px; font-family: inherit; cursor: pointer; line-height: 1.3; }
+  .date-editor-save   { color: #4ade80; border-color: rgba(34,197,94,0.5); }
+  .date-editor-save:hover   { background: rgba(34,197,94,0.15); }
+  .date-editor-cancel { color: #f87171; border-color: rgba(239,68,68,0.5); }
+  .date-editor-cancel:hover { background: rgba(239,68,68,0.15); }
+  .date-editor-clear  { color: #94a3b8; border-color: rgba(148,163,184,0.4); }
+  .date-editor-clear:hover  { background: rgba(148,163,184,0.15); }
+  /* Lighten native datetime-local picker icon in the New Task modal too. */
+  #mission-modal input[type="datetime-local"] { color-scheme: dark; }
+  #mission-modal input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.4); cursor: pointer; opacity: 1; }
+  /* Calendar event modal (full-page calendar) — same treatment. */
+  .cal-event-modal input[type="datetime-local"] { color-scheme: dark; }
+  .cal-event-modal input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.4); cursor: pointer; opacity: 1; }
+  /* Reusable "input + save + clear + preview" widget for datetime-local fields in modals. */
+  .cc-date-field { display: flex; align-items: stretch; gap: 4px; }
+  .cc-date-field input[type="datetime-local"] { flex: 1; min-width: 0; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 6px 10px; color: #e0e0e0; font-size: 12px; outline: none; box-sizing: border-box; }
+  .cc-date-field input[type="datetime-local"]:focus { border-color: var(--ws-accent, #4f46e5); }
+  .cc-date-set,
+  .cc-date-clear { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 0 10px; color: #cbd5e1; cursor: pointer; font-size: 12px; line-height: 1; font-family: inherit; }
+  .cc-date-set:hover  { border-color: #4ade80; color: #4ade80; background: rgba(34,197,94,0.08); }
+  .cc-date-clear:hover { border-color: #f87171; color: #f87171; background: rgba(239,68,68,0.08); }
+  .cc-date-preview { margin-top: 4px; font-size: 10px; min-height: 12px; color: var(--text-muted); letter-spacing: 0.02em; }
+  .cc-date-preview.cc-date-unconfirmed { color: #a5b4fc; }
+  .cc-date-preview.cc-date-confirmed   { color: #4ade80; font-weight: 600; }
+  .cc-date-preview.cc-date-invalid     { color: #f87171; }
   .mk-card-advance { position: absolute; top: 10px; right: 10px; background: transparent; border: 1px solid var(--border-subtle); border-radius: 4px; width: 24px; height: 24px; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0; transition: opacity 0.15s; }
   .mk-card:hover .mk-card-advance { opacity: 1; }
   .mk-card-advance:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
@@ -806,8 +961,8 @@ const WARROOM_ENABLED = warroomEnabled;
   </div>
 </aside>
 
-<!-- Outer wrapper: single column on mobile, wide 2-col on desktop -->
-<div class="max-w-lg lg:max-w-6xl mx-auto">
+<!-- Outer wrapper: single column on mobile, wide on desktop -->
+<div class="max-w-lg lg:max-w-full mx-auto lg:px-6">
 
 <!-- Top bar -->
 <div class="flex items-center justify-between mb-1">
@@ -1010,7 +1165,7 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
 </div>
 
 <!-- Hive Mind Feed -->
-<div id="hive-section" class="mb-5" data-cc-page="hive" style="display:none">
+<div id="hive-section" class="mb-5" data-cc-page="hive">
   <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Hive Mind<button class="privacy-toggle" onclick="toggleSectionBlur('hive')" title="Toggle blur">&#128065;</button></h2>
   <div id="hive-container" class="card hive-scroll">
     <div class="text-gray-500 text-sm">Loading...</div>
@@ -1088,11 +1243,21 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <div>
         <label for="mission-start" style="display:block;font-size:10px;color:#9ca3af;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Start (optional)</label>
-        <input type="datetime-local" id="mission-start" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none;box-sizing:border-box">
+        <div class="cc-date-field">
+          <input type="datetime-local" id="mission-start" oninput="ccDateFieldPreview('mission-start','mission-start-pv')">
+          <button type="button" class="cc-date-set" title="Confirm date" onclick="ccDateFieldConfirm('mission-start','mission-start-pv')">✓</button>
+          <button type="button" class="cc-date-clear" title="Clear" onclick="ccDateFieldClear('mission-start','mission-start-pv')">✕</button>
+        </div>
+        <div id="mission-start-pv" class="cc-date-preview"></div>
       </div>
       <div>
         <label for="mission-due" style="display:block;font-size:10px;color:#9ca3af;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Due (optional)</label>
-        <input type="datetime-local" id="mission-due" style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none;box-sizing:border-box">
+        <div class="cc-date-field">
+          <input type="datetime-local" id="mission-due" oninput="ccDateFieldPreview('mission-due','mission-due-pv')">
+          <button type="button" class="cc-date-set" title="Confirm date" onclick="ccDateFieldConfirm('mission-due','mission-due-pv')">✓</button>
+          <button type="button" class="cc-date-clear" title="Clear" onclick="ccDateFieldClear('mission-due','mission-due-pv')">✕</button>
+        </div>
+        <div id="mission-due-pv" class="cc-date-preview"></div>
       </div>
     </div>
     <div class="flex gap-2 items-center">
@@ -1102,7 +1267,7 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
         <option value="7">High</option>
         <option value="10">Critical</option>
       </select>
-      <button onclick="createMissionTask()" style="flex:1;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:600;cursor:pointer">Create</button>
+      <button onclick="createMissionTask()" style="flex:1;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:600;cursor:pointer">Save Task</button>
     </div>
     <div id="mission-error" class="text-red-400 text-xs mt-2" style="display:none"></div>
   </div>
@@ -1239,8 +1404,9 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
           <button onclick="ccCalendarToday()">Today</button>
         </div>
         <div class="cal-nav">
-          <button onclick="ccCalendarSetView('month')" id="cal-view-month">Month</button>
+          <button onclick="ccCalendarSetView('day')" id="cal-view-day">Day</button>
           <button onclick="ccCalendarSetView('week')" id="cal-view-week">Week</button>
+          <button onclick="ccCalendarSetView('month')" id="cal-view-month">Month</button>
         </div>
       </div>
       <div id="cal-weekdays-row" class="cal-weekdays">
@@ -1265,11 +1431,21 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
       <div class="cal-event-row2">
         <div>
           <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Start</label>
-          <input type="datetime-local" id="cal-ev-start">
+          <div class="cc-date-field">
+            <input type="datetime-local" id="cal-ev-start" oninput="ccDateFieldPreview('cal-ev-start','cal-ev-start-pv')">
+            <button type="button" class="cc-date-set" title="Confirm date" onclick="ccDateFieldConfirm('cal-ev-start','cal-ev-start-pv')">✓</button>
+            <button type="button" class="cc-date-clear" title="Clear" onclick="ccDateFieldClear('cal-ev-start','cal-ev-start-pv')">✕</button>
+          </div>
+          <div id="cal-ev-start-pv" class="cc-date-preview"></div>
         </div>
         <div>
           <label style="display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">End</label>
-          <input type="datetime-local" id="cal-ev-end">
+          <div class="cc-date-field">
+            <input type="datetime-local" id="cal-ev-end" oninput="ccDateFieldPreview('cal-ev-end','cal-ev-end-pv')">
+            <button type="button" class="cc-date-set" title="Confirm date" onclick="ccDateFieldConfirm('cal-ev-end','cal-ev-end-pv')">✓</button>
+            <button type="button" class="cc-date-clear" title="Clear" onclick="ccDateFieldClear('cal-ev-end','cal-ev-end-pv')">✕</button>
+          </div>
+          <div id="cal-ev-end-pv" class="cc-date-preview"></div>
         </div>
       </div>
       <div class="cal-event-row2">
@@ -1411,6 +1587,42 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
   <div class="mtg-grid" id="mtg-upcoming"></div>
   <div class="mtg-section-title">Past</div>
   <div class="mtg-grid" id="mtg-past"></div>
+  <div class="mtg-section-title" style="margin-top:18px;">Transcribe Recording</div>
+  <div id="mtg-transcribe-zone" style="border:2px dashed rgba(96,165,250,0.4);border-radius:10px;padding:32px 24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;background:rgba(96,165,250,0.03);" ondragover="event.preventDefault();event.stopPropagation();this.style.borderColor='#60a5fa';this.style.background='rgba(96,165,250,0.08)';" ondragleave="event.preventDefault();this.style.borderColor='rgba(96,165,250,0.4)';this.style.background='rgba(96,165,250,0.03)';" ondrop="event.preventDefault();event.stopPropagation();this.style.borderColor='rgba(96,165,250,0.4)';this.style.background='rgba(96,165,250,0.03)';if(event.dataTransfer.files.length)ccQuickTranscribe(event.dataTransfer.files[0]);">
+    <div style="font-size:36px;margin-bottom:8px;">🎙️</div>
+    <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">Transcribe a Meeting Recording</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Drag &amp; drop an audio file here, or use the button below</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button onclick="event.stopPropagation();document.getElementById('mtg-quick-upload').click();" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Bricolage Grotesque',sans-serif;letter-spacing:0.02em;">📝 Upload &amp; Transcribe</button>
+      <button id="mtg-record-btn" onclick="event.stopPropagation();ccToggleMicRecording();" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Bricolage Grotesque',sans-serif;letter-spacing:0.02em;">🔴 Record Here</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">Upload a file or record live from your mic. Supports: m4a, mp3, wav, ogg, webm, aac, flac</div>
+    <input type="file" id="mtg-quick-upload" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" style="display:none;" onchange="if(this.files.length)ccQuickTranscribe(this.files[0]);this.value='';">
+  </div>
+  <!-- Mic selector + recording timer (shown when recording starts) -->
+  <div id="mtg-recording-panel" style="display:none;margin-top:10px;padding:16px 20px;border:2px solid #ef4444;border-radius:10px;background:rgba(239,68,68,0.04);">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="mtg-rec-dot" style="width:12px;height:12px;background:#ef4444;border-radius:50%;animation:pulse-rec 1.2s ease-in-out infinite;flex-shrink:0;"></div>
+        <span id="mtg-rec-timer" style="font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;color:#ef4444;min-width:56px;">0:00</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <select id="mtg-mic-select" onchange="ccSwitchMic(this.value)" style="background:var(--card-bg);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;padding:5px 8px;font-size:12px;max-width:200px;"></select>
+        <button onclick="ccPauseMicRecording();" id="mtg-rec-pause" style="background:rgba(255,255,255,0.08);border:1px solid var(--border-subtle);color:var(--text-secondary);border-radius:5px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">⏸ Pause</button>
+        <button onclick="ccStopMicRecording();" style="background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">✅ Stop &amp; Transcribe</button>
+        <button onclick="ccCancelMicRecording();" style="background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);color:var(--text-muted);border-radius:5px;padding:6px 14px;font-size:12px;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div id="mtg-transcribe-progress" style="display:none;padding:20px;border:1px solid rgba(96,165,250,0.3);border-radius:10px;margin-top:10px;background:rgba(96,165,250,0.04);">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="spinner" style="width:18px;height:18px;border:2px solid var(--border-subtle);border-top-color:#60a5fa;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>
+      <span id="mtg-transcribe-status" style="font-size:13px;color:var(--text-secondary);font-weight:500;">Uploading...</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Whisper transcription runs locally. Long recordings may take several minutes.</div>
+  </div>
+  <div class="mtg-section-title" style="margin-top:18px;">Past Transcriptions</div>
+  <div id="mtg-transcriptions-list" class="mtg-grid" style="margin-top:8px;"></div>
 </section>
 
 <!-- Meeting edit modal -->
@@ -1483,7 +1695,9 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
     </div>
     <div class="mtg-modal-foot">
       <button class="del" id="mtg-delete" onclick="ccMeetingDelete()" style="display:none;">Delete</button>
-      <button class="voice" onclick="ccMeetingStartVoice()">🎙 Start Voice Meeting</button>
+      <button class="voice" onclick="ccMeetingStartVoice()">🎙 Voice Meeting</button>
+      <button class="transcribe" id="mtg-transcribe-btn" onclick="document.getElementById('mtg-audio-upload').click()">📝 Transcribe Recording</button>
+      <input type="file" id="mtg-audio-upload" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" style="display:none;" onchange="ccMeetingTranscribe(this)">
       <div style="flex:1;"></div>
       <button onclick="ccMeetingClose()">Cancel</button>
       <button class="save" onclick="ccMeetingSave()">Save</button>
@@ -1885,7 +2099,7 @@ function ccRenderSidebar() {
     const kbd = (i < 9) ? '<span class="cc-sidebar-kbd">⌘' + (i+1) + '</span>' : '';
     return '<a class="cc-sidebar-row ws' + isActive + '" data-slug="' + w.slug + '" onclick="ccSetWorkspace(\\'' + w.slug + '\\')" aria-keyshortcuts="Control+' + (i+1) + ' Meta+' + (i+1) + '"><span class="cc-sidebar-icon">' + w.icon_emoji + '</span><span class="cc-sidebar-label">' + w.name + '</span>' + kbd + '</a>';
   }).join('');
-  const navHtml = CC_NAV_GROUPS.map(g => {
+  const renderNavGroup = function(g) {
     const rows = g.items.map(it => {
       const cls = (it.id === 'command')
         ? 'cc-sidebar-row command'
@@ -1897,12 +2111,16 @@ function ccRenderSidebar() {
       return '<a class="' + cls + '"' + pageAttr + ' onclick="' + onClick + '"><span class="cc-sidebar-icon">' + it.icon + '</span><span class="cc-sidebar-label">' + it.label + '</span></a>';
     }).join('');
     return '<div><div class="cc-sidebar-group-label' + (g.gold ? ' gold' : '') + '">' + g.label + '</div><div class="cc-sidebar-rows">' + rows + '</div></div>';
-  }).join('');
+  };
+  // Command Centre (first nav group) goes at the very top, above workspaces
+  const commandGroupHtml = renderNavGroup(CC_NAV_GROUPS[0]);
+  const restNavHtml = CC_NAV_GROUPS.slice(1).map(renderNavGroup).join('');
   nav.innerHTML =
+    commandGroupHtml +
     '<div><div class="cc-sidebar-group-label">WORKSPACES</div><div class="cc-sidebar-rows">' + wsRows + '</div>' +
     '<button class="cc-ws-create" onclick="ccToggleCreateForm()"><span class="cc-sidebar-icon">+</span><span class="cc-sidebar-label">New workspace</span></button>' +
     '<div id="cc-ws-form-slot"></div></div>' +
-    navHtml;
+    restNavHtml;
 }
 
 function ccToggleCreateForm() {
@@ -2355,6 +2573,55 @@ async function loadTokens() {
 
 function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function ccCopyCode(btn) {
+  var code = btn.parentElement.querySelector('code');
+  if (!code) return;
+  var text = code.textContent || code.innerText || '';
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  }).catch(function() {
+    // Fallback for older browsers / non-HTTPS
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function ccCopyMsg(btn) {
+  var wrap = btn.closest('.chat-msg-wrap');
+  if (!wrap) return;
+  var bubble = wrap.querySelector('.chat-bubble');
+  if (!bubble) return;
+  var text = bubble.innerText || bubble.textContent || '';
+  navigator.clipboard.writeText(text).then(function() {
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    }, 1500);
+  }).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.classList.add('copied');
+    setTimeout(function() { btn.classList.remove('copied'); }, 1500);
+  });
 }
 
 async function loadInfo() {
@@ -3428,8 +3695,22 @@ async function loadHiveMind() {
     const data = await api('/api/hive-mind?limit=15');
     const section = document.getElementById('hive-section');
     const container = document.getElementById('hive-container');
-    if (!data.entries || data.entries.length === 0) { section.style.display = 'none'; return; }
-    section.style.display = '';
+    if (!data.entries || data.entries.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:32px 16px;">' +
+        '<div style="font-size:36px;margin-bottom:10px;">🔍</div>' +
+        '<div style="font-family:Bricolage Grotesque,sans-serif;font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">Hive Mind is Empty</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);max-width:360px;margin:0 auto;line-height:1.5;">' +
+          'The Hive Mind captures cross-agent activity: session starts, session summaries, corrections, mission task completions, and more. ' +
+          'As you and your agents work together, events will appear here in real time.</div>' +
+        '<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">' +
+          '<span style="font-size:10px;padding:3px 10px;border-radius:999px;border:1px solid var(--border-subtle);color:var(--text-muted);">session_start</span>' +
+          '<span style="font-size:10px;padding:3px 10px;border-radius:999px;border:1px solid var(--border-subtle);color:var(--text-muted);">session_end</span>' +
+          '<span style="font-size:10px;padding:3px 10px;border-radius:999px;border:1px solid var(--border-subtle);color:var(--text-muted);">self_correction</span>' +
+          '<span style="font-size:10px;padding:3px 10px;border-radius:999px;border:1px solid var(--border-subtle);color:var(--text-muted);">mission_complete</span>' +
+        '</div>' +
+      '</div>';
+      return;
+    }
     const blurState = JSON.parse(localStorage.getItem('privacyBlur_hive') || '{}');
     const allRevealed = localStorage.getItem('privacyBlur_hive_all') === 'revealed';
     const rows = data.entries.map((e, i) => {
@@ -3593,13 +3874,17 @@ function ccKanbanRender() {
 
   const cols = { queued: [], in_progress: [], completed: [] };
   let unassignedCount = 0;
+  let completedTotal = 0;
   for (const t of CC_KANBAN_ALL_TASKS) {
     if (!matches(t)) continue;
     if (!t.assigned_agent && t.status === 'queued') unassignedCount++;
     if (t.status === 'queued') cols.queued.push(t);
     else if (t.status === 'in_progress' || t.status === 'running') cols.in_progress.push(t);
-    else if (t.status === 'completed') {
-      if (t.completed_at && (now - t.completed_at) < CC_KANBAN_DONE_VISIBLE_SECS) cols.completed.push(t);
+    else if (t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled') {
+      completedTotal++;
+      if (t.status === 'completed' && t.completed_at && (now - t.completed_at) < CC_KANBAN_DONE_VISIBLE_SECS) {
+        cols.completed.push(t);
+      }
     }
   }
 
@@ -3610,9 +3895,22 @@ function ccKanbanRender() {
     if (countEl) countEl.textContent = String(items.length);
     if (!body) continue;
     if (items.length === 0) {
-      body.innerHTML = '<div class="mk-col-empty">No tasks</div>';
+      body.innerHTML = status === 'completed' && completedTotal === 0
+        ? '<div class="mk-col-empty">No tasks</div>'
+        : status === 'completed'
+          ? ''
+          : '<div class="mk-col-empty">No tasks</div>';
     } else {
       body.innerHTML = items.map((t) => ccKanbanRenderCard(t, status)).join('');
+    }
+    if (status === 'completed') {
+      const hidden = Math.max(0, completedTotal - cols.completed.length);
+      if (hidden > 0) {
+        body.innerHTML += '<button type="button" class="mk-history-chip" onclick="openTaskHistory()" title="Open History">+' + hidden + ' in history →</button>';
+      } else if (cols.completed.length === 0) {
+        // No visible, no hidden — fall back to empty marker.
+        body.innerHTML = '<div class="mk-col-empty">No tasks</div>';
+      }
     }
   }
 
@@ -3649,13 +3947,17 @@ function ccKanbanRenderCard(t, status) {
   let dateChips = '';
   if (t.start_at) {
     const c = ccKanbanFormatDateChip(t.start_at);
-    dateChips += '<span class="mk-badge date-chip tone-' + c.tone + '">▶ ' + ccEscapeHtml(c.label) + '</span>';
+    dateChips += '<span class="mk-badge date-chip date-edit-chip tone-' + c.tone + '" data-mid="' + t.id + '" data-field="start_at" data-ts="' + t.start_at + '" title="Click to edit start date" onclick="event.stopPropagation();ccKanbanEditDate(this)">▶ ' + ccEscapeHtml(c.label) + '</span>';
+  } else {
+    dateChips += '<span class="mk-badge date-chip date-edit-chip date-chip-empty" data-mid="' + t.id + '" data-field="start_at" data-ts="" title="Click to set start date" onclick="event.stopPropagation();ccKanbanEditDate(this)">▶ Set start</span>';
   }
   if (t.due_at) {
     const c = ccKanbanFormatDateChip(t.due_at);
     // Completed tasks shouldn't scream "overdue" — tone it down.
     const tone = status === 'completed' ? 'far' : c.tone;
-    dateChips += '<span class="mk-badge date-chip tone-' + tone + '">⚑ ' + ccEscapeHtml(c.label) + '</span>';
+    dateChips += '<span class="mk-badge date-chip date-edit-chip tone-' + tone + '" data-mid="' + t.id + '" data-field="due_at" data-ts="' + t.due_at + '" title="Click to edit due date" onclick="event.stopPropagation();ccKanbanEditDate(this)">⚑ ' + ccEscapeHtml(c.label) + '</span>';
+  } else {
+    dateChips += '<span class="mk-badge date-chip date-edit-chip date-chip-empty" data-mid="' + t.id + '" data-field="due_at" data-ts="" title="Click to set due date" onclick="event.stopPropagation();ccKanbanEditDate(this)">⚑ Set due</span>';
   }
   return '<div class="mk-card" data-col="' + status + '" data-mid="' + t.id + '" draggable="true"' +
     ' ondragstart="ccKanbanDragStart(event)" ondragend="ccKanbanDragEnd(event)"' +
@@ -3669,6 +3971,137 @@ function ccKanbanRenderCard(t, status) {
       dateChips +
     '</div>' +
   '</div>';
+}
+
+function ccKanbanEditDate(chipEl) {
+  if (!chipEl || chipEl.dataset.editing === '1') return;
+  const id = chipEl.dataset.mid;
+  const field = chipEl.dataset.field === 'start_at' ? 'start_at' : 'due_at';
+  const existing = chipEl.dataset.ts ? parseInt(chipEl.dataset.ts, 10) : 0;
+  chipEl.dataset.editing = '1';
+  const wrap = document.createElement('span');
+  wrap.className = 'date-editor';
+  wrap.setAttribute('onclick', 'event.stopPropagation()');
+  const input = document.createElement('input');
+  input.type = 'datetime-local';
+  input.className = 'date-chip-input';
+  if (existing) {
+    const d = new Date(existing * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    input.value = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'date-editor-save';
+  saveBtn.textContent = '✓';
+  saveBtn.title = 'Save (Enter)';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'date-editor-cancel';
+  cancelBtn.textContent = '✕';
+  cancelBtn.title = 'Cancel (Esc)';
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'date-editor-clear';
+  clearBtn.textContent = 'Clear';
+  clearBtn.title = 'Remove date';
+  if (!existing) clearBtn.style.display = 'none';
+  wrap.appendChild(input);
+  wrap.appendChild(saveBtn);
+  wrap.appendChild(cancelBtn);
+  wrap.appendChild(clearBtn);
+  chipEl.parentNode.replaceChild(wrap, chipEl);
+  input.focus();
+  let committed = false;
+  const commit = async (mode) => {
+    if (committed) return;
+    committed = true;
+    if (mode === 'cancel') { await loadMissionControl(); return; }
+    let nextTs = null;
+    if (mode !== 'clear') {
+      const raw = input.value;
+      if (raw) {
+        const ts = Math.floor(new Date(raw).getTime() / 1000);
+        if (!Number.isFinite(ts)) { await loadMissionControl(); return; }
+        nextTs = ts;
+      }
+    }
+    if (nextTs === existing || (nextTs === null && !existing)) { await loadMissionControl(); return; }
+    try {
+      const body = {};
+      body[field] = nextTs;
+      const r = await fetch('/api/mission/tasks/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        console.warn(field + ' update failed', err);
+      }
+    } catch (err) { console.warn(field + ' update failed', err); }
+    await loadMissionControl();
+  };
+  // Blur-to-save, but only when focus leaves the whole editor.
+  const onBlurSave = (ev) => {
+    if (ev.relatedTarget && wrap.contains(ev.relatedTarget)) return;
+    setTimeout(() => { if (!committed) commit('save'); }, 0);
+  };
+  input.addEventListener('blur', onBlurSave);
+  saveBtn.addEventListener('blur', onBlurSave);
+  cancelBtn.addEventListener('blur', onBlurSave);
+  clearBtn.addEventListener('blur', onBlurSave);
+  saveBtn.addEventListener('mousedown', (ev) => ev.preventDefault()); // don't steal focus before click
+  cancelBtn.addEventListener('mousedown', (ev) => ev.preventDefault());
+  clearBtn.addEventListener('mousedown', (ev) => ev.preventDefault());
+  saveBtn.addEventListener('click', (ev) => { ev.stopPropagation(); commit('save'); });
+  cancelBtn.addEventListener('click', (ev) => { ev.stopPropagation(); commit('cancel'); });
+  clearBtn.addEventListener('click', (ev) => { ev.stopPropagation(); commit('clear'); });
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit('save'); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); commit('cancel'); }
+  });
+  input.addEventListener('click', (ev) => ev.stopPropagation());
+  input.addEventListener('mousedown', (ev) => ev.stopPropagation());
+}
+
+// Save/Clear widget helpers for datetime-local inputs in modals. Confirmation
+// is a brief 2-second "✓ Saved" flash rather than a persistent echo — the
+// input itself shows the captured value, so repeating it is noise.
+const _ccDateFieldTimers = {};
+function ccDateFieldPreview(_inputId, previewId) {
+  // No persistent preview while typing. Clear any stale flash so it doesn't
+  // linger if the user edits after confirming.
+  const preview = document.getElementById(previewId);
+  if (preview) { preview.textContent = ''; preview.className = 'cc-date-preview'; }
+  if (_ccDateFieldTimers[previewId]) { clearTimeout(_ccDateFieldTimers[previewId]); delete _ccDateFieldTimers[previewId]; }
+}
+function ccDateFieldConfirm(inputId, previewId) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  if (!input || !preview) return;
+  if (_ccDateFieldTimers[previewId]) clearTimeout(_ccDateFieldTimers[previewId]);
+  if (!input.value) {
+    preview.textContent = '(no date set)';
+    preview.className = 'cc-date-preview';
+  } else if (isNaN(new Date(input.value).getTime())) {
+    preview.textContent = 'Invalid date';
+    preview.className = 'cc-date-preview cc-date-invalid';
+  } else {
+    preview.textContent = '✓ Saved';
+    preview.className = 'cc-date-preview cc-date-confirmed';
+  }
+  _ccDateFieldTimers[previewId] = setTimeout(() => {
+    preview.textContent = '';
+    preview.className = 'cc-date-preview';
+    delete _ccDateFieldTimers[previewId];
+  }, 2000);
+}
+function ccDateFieldClear(inputId, previewId) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  if (input) input.value = '';
+  if (preview) { preview.textContent = ''; preview.className = 'cc-date-preview'; }
+  if (_ccDateFieldTimers[previewId]) { clearTimeout(_ccDateFieldTimers[previewId]); delete _ccDateFieldTimers[previewId]; }
 }
 
 function ccKanbanAddTask(status) {
@@ -3910,6 +4343,8 @@ function closeMissionModal() {
   document.getElementById('mission-priority').value = '4';
   const sEl = document.getElementById('mission-start'); if (sEl) sEl.value = '';
   const dEl = document.getElementById('mission-due'); if (dEl) dEl.value = '';
+  ccDateFieldClear('mission-start', 'mission-start-pv');
+  ccDateFieldClear('mission-due', 'mission-due-pv');
   document.getElementById('mission-error').style.display = 'none';
 }
 document.getElementById('mission-overlay').addEventListener('click', closeMissionModal);
@@ -4233,6 +4668,8 @@ function updateChatStatus(connected) {
 
 function appendChatBubble(role, content, source, scroll) {
   const container = document.getElementById('chat-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-msg-wrap ' + (role === 'user' ? 'user-wrap' : 'assistant-wrap');
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble ' + (role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant');
   bubble.innerHTML = role === 'assistant' ? renderMarkdown(content) : escapeHtml(content);
@@ -4242,7 +4679,14 @@ function appendChatBubble(role, content, source, scroll) {
     srcBadge.textContent = source.charAt(0).toUpperCase() + source.slice(1);
     bubble.appendChild(srcBadge);
   }
-  container.appendChild(bubble);
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'chat-msg-copy-btn';
+  copyBtn.title = 'Copy message';
+  copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  copyBtn.onclick = function() { ccCopyMsg(this); };
+  wrap.appendChild(bubble);
+  wrap.appendChild(copyBtn);
+  container.appendChild(wrap);
   if (scroll) scrollChatBottom();
 }
 
@@ -4279,9 +4723,26 @@ function renderMarkdown(text) {
 
   var s = text;
 
+  // Handle [SEND_PHOTO:/path] and [SEND_FILE:/path] markers
+  s = s.replace(/\\[SEND_PHOTO:([^\\]|]+?)(?:\\|([^\\]]*?))?\\]/g, function(_, filePath, caption) {
+    var url = '/api/media/' + encodeURIComponent(filePath.trim());
+    var cap = caption ? '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">' + escapeHtml(caption.trim()) + '</div>' : '';
+    return preserve('<img src="' + url + '" alt="' + escapeHtml(caption || 'image') + '" loading="lazy" onclick="window.open(this.src,\\'_blank\\')">' + cap);
+  });
+  s = s.replace(/\\[SEND_FILE:([^\\]|]+?)(?:\\|([^\\]]*?))?\\]/g, function(_, filePath, caption) {
+    var url = '/api/media/' + encodeURIComponent(filePath.trim());
+    var label = caption ? caption.trim() : filePath.trim().split('/').pop();
+    return preserve('<a class="chat-file-link" href="' + url + '" target="_blank" download>📎 ' + escapeHtml(label) + '</a>');
+  });
+
+  // Handle markdown images ![alt](url)
+  s = s.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, function(_, alt, url) {
+    return preserve('<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(alt) + '" loading="lazy">');
+  });
+
   // Code blocks: ` + '```' + `...` + '```' + `
   s = s.replace(/` + '`' + '`' + '`' + `(?:\\w*\\n)?([\\s\\S]*?)` + '`' + '`' + '`' + `/g, function(_, code) {
-    return preserve('<pre><code>' + escapeHtml(code.trim()) + '<\\/code><\\/pre>');
+    return preserve('<pre><button class="code-copy-btn" onclick="ccCopyCode(this)">Copy</button><code>' + escapeHtml(code.trim()) + '<\\/code><\\/pre>');
   });
 
   // Tables: consecutive lines starting and ending with |
@@ -4357,24 +4818,91 @@ function renderMarkdown(text) {
   return s;
 }
 
+// ── File upload state ──
+var CC_PENDING_FILE = null; // { file: File, previewUrl: string|null }
+
+function handleFileSelect(input) {
+  if (!input.files || !input.files[0]) return;
+  stageFile(input.files[0]);
+  input.value = ''; // reset so same file can be re-selected
+}
+
+function stageFile(file) {
+  var preview = document.getElementById('chat-file-preview');
+  var isImage = file.type.startsWith('image/');
+  var previewUrl = isImage ? URL.createObjectURL(file) : null;
+  CC_PENDING_FILE = { file: file, previewUrl: previewUrl };
+
+  var html = '<div class="chat-file-preview">';
+  if (isImage) {
+    html += '<img src="' + previewUrl + '" alt="preview">';
+  } else {
+    html += '<span>📎</span>';
+  }
+  html += '<span>' + escapeHtml(file.name) + ' (' + formatFileSize(file.size) + ')</span>';
+  html += '<button class="remove-file" onclick="clearStagedFile()" title="Remove">×</button>';
+  html += '</div>';
+  preview.innerHTML = html;
+  preview.style.display = 'block';
+  document.getElementById('chat-input').focus();
+}
+
+function clearStagedFile() {
+  if (CC_PENDING_FILE && CC_PENDING_FILE.previewUrl) {
+    URL.revokeObjectURL(CC_PENDING_FILE.previewUrl);
+  }
+  CC_PENDING_FILE = null;
+  var preview = document.getElementById('chat-file-preview');
+  preview.innerHTML = '';
+  preview.style.display = 'none';
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
-  if (!text) return;
+  const hasFile = !!CC_PENDING_FILE;
+  if (!text && !hasFile) return;
   input.value = '';
   autoResizeInput();
-  // Disable send while processing
   document.getElementById('chat-send-btn').disabled = true;
+
   try {
-    await fetch(BASE + '/api/chat/send?token=' + TOKEN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
-    });
+    if (hasFile) {
+      // Upload file first, then send message
+      var formData = new FormData();
+      formData.append('file', CC_PENDING_FILE.file);
+      if (text) formData.append('caption', text);
+
+      // Show the file as a user bubble immediately
+      var fileName = CC_PENDING_FILE.file.name;
+      var isImg = CC_PENDING_FILE.file.type.startsWith('image/');
+      if (isImg && CC_PENDING_FILE.previewUrl) {
+        appendChatBubble('user', '📎 ' + fileName + (text ? '\\n' + text : ''), 'dashboard', true);
+      } else {
+        appendChatBubble('user', '📎 ' + fileName + (text ? '\\n' + text : ''), 'dashboard', true);
+      }
+      clearStagedFile();
+
+      await fetch(BASE + '/api/chat/upload?token=' + TOKEN, {
+        method: 'POST',
+        body: formData,
+      });
+    } else {
+      await fetch(BASE + '/api/chat/send?token=' + TOKEN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+    }
   } catch(e) {
     console.error('Send error', e);
   }
-  // Re-enable after a short delay (SSE will deliver the actual messages)
   setTimeout(() => { document.getElementById('chat-send-btn').disabled = false; }, 1000);
 }
 
@@ -4383,6 +4911,61 @@ function autoResizeInput() {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
+
+// ── Drag-and-drop on chat overlay ──
+(function initChatDragDrop() {
+  var dragCounter = 0;
+  var overlay = null;
+  var chatArea = null;
+
+  function getEls() {
+    if (!overlay) overlay = document.getElementById('chat-drop-overlay');
+    if (!chatArea) chatArea = document.querySelector('.chat-overlay');
+    return overlay && chatArea;
+  }
+
+  document.addEventListener('dragenter', function(e) {
+    if (!getEls() || !chatArea.classList.contains('open')) return;
+    dragCounter++;
+    overlay.classList.add('active');
+  });
+  document.addEventListener('dragleave', function(e) {
+    if (!getEls()) return;
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('active'); }
+  });
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dragCounter = 0;
+    if (!getEls()) return;
+    overlay.classList.remove('active');
+    if (!chatArea.classList.contains('open')) return;
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      stageFile(e.dataTransfer.files[0]);
+    }
+  });
+})();
+
+// ── Clipboard paste for images ──
+document.addEventListener('paste', function(e) {
+  var chatInput = document.getElementById('chat-input');
+  if (!chatInput || document.activeElement !== chatInput) return;
+  var items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      e.preventDefault();
+      var file = items[i].getAsFile();
+      if (file) {
+        // Give it a name since clipboard images are unnamed
+        var named = new File([file], 'pasted_image_' + Date.now() + '.png', { type: file.type });
+        stageFile(named);
+      }
+      break;
+    }
+  }
+});
 
 async function abortProcessing() {
   try {
@@ -4639,13 +5222,21 @@ async function ccQuickAddSubmit() {
 // ── Phase 4a: Calendar ─────────────────────────────────────────────
 // View state: month + anchor date (for month/week navigation), selected
 // day (for the side panel), and the last-fetched tasksByDate snapshot.
-let CC_CAL_VIEW = 'month'; // 'month' | 'week'
+let CC_CAL_VIEW = 'month'; // 'month' | 'week' | 'day'
 let CC_CAL_ANCHOR = new Date();
 let CC_CAL_TASKS_BY_DATE = {};
 let CC_CAL_EVENTS = [];
 let CC_CAL_SELECTED_DAY = null; // 'YYYY-MM-DD'
 let CC_CAL_EDITING = null; // event row being edited
 const CC_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// Format a Date as YYYY-MM-DD in *local* time. toISOString() returns UTC,
+// which makes the highlighted "today" cell wrong for users in timezones behind
+// UTC (late-night local is already next-day UTC).
+function ccCalLocalDateKey(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
 
 function ccCalendarSetView(v) {
   CC_CAL_VIEW = v;
@@ -4656,35 +5247,31 @@ function ccCalendarSetView(v) {
   ccLoadCalendar();
 }
 function ccCalendarPrev() {
-  if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() - 7);
+  if (CC_CAL_VIEW === 'day') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() - 1);
+  else if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() - 7);
   else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() - 1, 1);
   ccLoadCalendar();
 }
 function ccCalendarNext() {
-  if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() + 7);
+  if (CC_CAL_VIEW === 'day') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() + 1);
+  else if (CC_CAL_VIEW === 'week') CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth(), CC_CAL_ANCHOR.getDate() + 7);
   else CC_CAL_ANCHOR = new Date(CC_CAL_ANCHOR.getFullYear(), CC_CAL_ANCHOR.getMonth() + 1, 1);
   ccLoadCalendar();
 }
 async function ccCalendarToday() {
   CC_CAL_ANCHOR = new Date();
+  CC_CAL_VIEW = 'day';
+  ccCalCloseDayPanel();
   await ccLoadCalendar();
-  // Give visible feedback even when we were already on today's week — flash
-  // the today column + day-header so the click feels responsive.
-  setTimeout(() => {
-    document.querySelectorAll('.cal-week-dayhead.today-col, .cal-cell.today, .cal-week-cell.today-col').forEach((el) => {
-      el.classList.add('cal-today-flash');
-      setTimeout(() => el.classList.remove('cal-today-flash'), 700);
-    });
-  }, 30);
 }
 
 function ccCalUpdateViewButtons() {
   const m = document.getElementById('cal-view-month');
   const w = document.getElementById('cal-view-week');
-  if (m) m.style.borderColor = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : '';
-  if (m) m.style.color       = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : '';
-  if (w) w.style.borderColor = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : '';
-  if (w) w.style.color       = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : '';
+  const d = document.getElementById('cal-view-day');
+  if (m) { m.style.borderColor = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : ''; m.style.color = CC_CAL_VIEW === 'month' ? 'var(--ws-accent)' : ''; }
+  if (w) { w.style.borderColor = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : ''; w.style.color = CC_CAL_VIEW === 'week'  ? 'var(--ws-accent)' : ''; }
+  if (d) { d.style.borderColor = CC_CAL_VIEW === 'day'   ? 'var(--ws-accent)' : ''; d.style.color = CC_CAL_VIEW === 'day'   ? 'var(--ws-accent)' : ''; }
   const wkdays = document.getElementById('cal-weekdays-row');
   if (wkdays) wkdays.style.display = CC_CAL_VIEW === 'month' ? '' : 'none';
 }
@@ -4694,12 +5281,14 @@ async function ccLoadCalendar() {
   const label = document.getElementById('cal-label');
   if (!grid || !label) return;
   ccCalUpdateViewButtons();
-  if (CC_CAL_VIEW === 'week') {
+  if (CC_CAL_VIEW === 'day') {
+    await ccCalRenderDay();
+  } else if (CC_CAL_VIEW === 'week') {
     await ccCalRenderWeek();
   } else {
     await ccCalRenderMonth();
   }
-  ccCalRenderDayPanel();
+  if (CC_CAL_VIEW !== 'day') ccCalRenderDayPanel();
 }
 
 async function ccCalRenderMonth() {
@@ -4723,7 +5312,7 @@ async function ccCalRenderMonth() {
   const firstWeekday = firstDay.getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysInPrev = new Date(year, month - 1, 0).getDate();
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = ccCalLocalDateKey(new Date());
   const cells = [];
   for (let i = firstWeekday - 1; i >= 0; i--) cells.push({ date: daysInPrev - i, key: null, off: true });
   for (let d = 1; d <= daysInMonth; d++) {
@@ -4740,9 +5329,13 @@ async function ccCalRenderMonth() {
     const visible = tasks.slice(0, 2);
     const extra = tasks.length - visible.length;
     const pills = visible.map((t) => {
-      const cls = t.source === 'event' ? 'cal-pill event' : 'cal-pill';
+      const cls = t.source === 'event' ? 'cal-pill event' : t.source === 'mission' ? 'cal-pill mission' : 'cal-pill';
+      const icon = t.source === 'mission' ? '📋 ' : t.source === 'cron' ? '⏰ ' : '';
       const title = ccEscapeHtml(t.prompt) + ' · ' + ccEscapeHtml(t.schedule || '');
-      return '<div class="' + cls + '" title="' + title + '"><span class="cal-pill-time">' + ccEscapeHtml(t.time) + '</span>' + ccEscapeHtml(t.prompt.slice(0, 40)) + '</div>';
+      const onClick = t.source === 'mission' && typeof t.id === 'string' && t.id.indexOf('mission_') === 0
+        ? ' onclick="event.stopPropagation();ccCalJumpToMission(\\'' + ccEscapeHtml(t.id.slice(8)) + '\\')"'
+        : '';
+      return '<div class="' + cls + '"' + onClick + ' title="' + title + '"><span class="cal-pill-time">' + ccEscapeHtml(t.time) + '</span>' + icon + ccEscapeHtml(t.prompt.slice(0, 40)) + '</div>';
     }).join('');
     const more = extra > 0 ? '<div class="cal-more">+' + extra + ' more</div>' : '';
     const clickAttr = cell.key ? ' onclick="ccCalSelectDay(\\'' + cell.key + '\\')"' : '';
@@ -4755,6 +5348,71 @@ function ccCalMondayOf(date) {
   const day = d.getDay();
   const diff = (day === 0 ? -6 : 1 - day); // treat Monday as week start for week view
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+}
+
+async function ccCalRenderDay() {
+  const grid = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-label');
+  if (!grid || !label) return;
+  grid.className = 'cal-day-grid';
+  const anchor = CC_CAL_ANCHOR;
+  const dateKey = ccCalLocalDateKey(anchor);
+  const dayName = anchor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const todayKey = ccCalLocalDateKey(new Date());
+  const isToday = dateKey === todayKey;
+  label.textContent = dayName;
+  // Fetch events for this day
+  const fromTs = Math.floor(new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()).getTime() / 1000);
+  const toTs = fromTs + 86400;
+  let dayEvents = [];
+  try {
+    const r = await fetch('/api/calendar/events?from=' + fromTs + '&to=' + toTs);
+    const data = await r.json();
+    dayEvents = data.events || [];
+  } catch (err) {
+    console.warn('ccCalRenderDay events fetch failed', err);
+  }
+  // Also get cron tasks for this date via month API
+  const monthStr = anchor.getFullYear() + '-' + String(anchor.getMonth() + 1).padStart(2, '0');
+  try {
+    const r = await fetch('/api/calendar?month=' + monthStr);
+    const data = await r.json();
+    CC_CAL_TASKS_BY_DATE = data.tasksByDate || {};
+  } catch { CC_CAL_TASKS_BY_DATE = {}; }
+  const cronTasks = (CC_CAL_TASKS_BY_DATE[dateKey] || []).filter(t => t.source === 'cron');
+  const nowHour = new Date().getHours();
+  // Header
+  const badgeHtml = isToday ? '<span class="day-badge">Today</span>' : '';
+  let html = '<div style="grid-column:1/-1;"><div class="cal-day-header-date">' + ccEscapeHtml(dayName) + badgeHtml + '</div></div>';
+  // Hour rows from 6am to 11pm
+  for (let h = 6; h <= 23; h++) {
+    const hh = String(h).padStart(2, '0') + ':00';
+    const cellClasses = ['cal-day-hour-cell'];
+    if (isToday && h === nowHour) cellClasses.push('now-hour');
+    // Find events at this hour
+    const hourEvents = dayEvents.filter(ev => {
+      const evDate = new Date(ev.start_time * 1000);
+      return evDate.getHours() === h;
+    });
+    // Find cron tasks at this hour
+    const hourCron = cronTasks.filter(t => {
+      const parts = t.time.split(':');
+      return parseInt(parts[0], 10) === h;
+    });
+    const eventPills = hourEvents.map(ev => {
+      const d = new Date(ev.start_time * 1000);
+      const hhmm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      const endD = ev.end_time ? new Date(ev.end_time * 1000) : null;
+      const endStr = endD ? (' – ' + String(endD.getHours()).padStart(2,'0') + ':' + String(endD.getMinutes()).padStart(2,'0')) : '';
+      return '<div class="cal-day-event-pill" onclick="event.stopPropagation();ccCalOpenEvent(' + ev.id + ')"><span class="pill-time">' + hhmm + endStr + '</span>' + ccEscapeHtml(ev.title || ev.prompt || 'Event') + '</div>';
+    }).join('');
+    const cronPills = hourCron.map(t => {
+      return '<div class="cal-day-event-pill" style="border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);"><span class="pill-time">' + ccEscapeHtml(t.time) + '</span>' + ccEscapeHtml(t.prompt.slice(0, 50)) + '</div>';
+    }).join('');
+    html += '<div class="cal-day-hour-label">' + hh + '</div>';
+    html += '<div class="' + cellClasses.join(' ') + '" onclick="ccCalNewEventAtHour(\\'' + dateKey + '\\',' + h + ')">' + eventPills + cronPills + '</div>';
+  }
+  grid.innerHTML = html;
 }
 
 async function ccCalRenderWeek() {
@@ -4777,11 +5435,11 @@ async function ccCalRenderWeek() {
     CC_CAL_EVENTS = [];
   }
   const now = new Date();
-  const todayKey = now.toISOString().slice(0, 10);
+  const todayKey = ccCalLocalDateKey(now);
   const nowHour = now.getHours();
   // Header row: empty corner + day headers (stacked weekday + day-number)
   const headers = days.map((d) => {
-    const key = d.toISOString().slice(0, 10);
+    const key = ccCalLocalDateKey(d);
     const classes = ['cal-week-dayhead'];
     if (key === todayKey) classes.push('today-col');
     const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
@@ -4796,10 +5454,10 @@ async function ccCalRenderWeek() {
     const hh = String(h).padStart(2, '0') + ':00';
     let row = '<div class="cal-week-hour-label">' + hh + '</div>';
     for (const day of days) {
-      const dayKey = day.toISOString().slice(0, 10);
+      const dayKey = ccCalLocalDateKey(day);
       const cellEvents = CC_CAL_EVENTS.filter((ev) => {
         const evDate = new Date(ev.start_time * 1000);
-        return evDate.toISOString().slice(0, 10) === dayKey && evDate.getHours() === h;
+        return ccCalLocalDateKey(evDate) === dayKey && evDate.getHours() === h;
       });
       const pills = cellEvents.map((ev) => {
         const d = new Date(ev.start_time * 1000);
@@ -4845,10 +5503,16 @@ function ccCalRenderDayPanel() {
   const tasks = (CC_CAL_TASKS_BY_DATE[key] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
   const items = tasks.map((t) => {
     const evId = (t.source === 'event' && typeof t.id === 'string' && t.id.startsWith('event_')) ? parseInt(t.id.slice(6), 10) : null;
-    const onClick = evId ? 'onclick="ccCalOpenEvent(' + evId + ')"' : '';
-    const cls = t.source === 'cron' ? 'cal-day-item cron' : 'cal-day-item';
-    const sub = t.source === 'cron' ? ('Scheduled task · ' + ccEscapeHtml(t.schedule)) : ccEscapeHtml(t.event_type || 'event');
-    return '<div class="' + cls + '" ' + onClick + '><div class="cal-day-item-title">' + ccEscapeHtml(t.prompt) + '</div><div class="cal-day-item-meta">' + ccEscapeHtml(t.time) + ' · ' + sub + '</div></div>';
+    const missionId = (t.source === 'mission' && typeof t.id === 'string' && t.id.indexOf('mission_') === 0) ? t.id.slice(8) : null;
+    const onClick = evId
+      ? 'onclick="ccCalOpenEvent(' + evId + ')"'
+      : missionId
+        ? 'onclick="ccCalJumpToMission(\\'' + ccEscapeHtml(missionId) + '\\')"'
+        : '';
+    const cls = t.source === 'cron' ? 'cal-day-item cron' : t.source === 'mission' ? 'cal-day-item mission' : 'cal-day-item';
+    const icon = t.source === 'mission' ? '📋 ' : t.source === 'cron' ? '⏰ ' : '';
+    const sub = t.source === 'cron' ? ('Scheduled task · ' + ccEscapeHtml(t.schedule)) : t.source === 'mission' ? ('Mission task · ' + ccEscapeHtml(t.schedule || '')) : ccEscapeHtml(t.event_type || 'event');
+    return '<div class="' + cls + '" ' + onClick + '><div class="cal-day-item-title">' + icon + ccEscapeHtml(t.prompt) + '</div><div class="cal-day-item-meta">' + ccEscapeHtml(t.time) + ' · ' + sub + '</div></div>';
   }).join('');
   const empty = tasks.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);">No events.</div>' : '';
   panel.innerHTML =
@@ -4878,12 +5542,18 @@ function ccCalOpenModal(preset) {
   endInput.value = preset && preset.end_time ? fmt(preset.end_time) : '';
   document.getElementById('cal-ev-type').value = (preset && preset.event_type) || 'appointment';
   document.getElementById('cal-ev-repeat').value = (preset && preset.repeat) || '';
+  // Clear any prior preview state — the input itself shows the captured value
+  // when editing, so no echo is needed.
+  ccDateFieldClear('cal-ev-start', 'cal-ev-start-pv');
+  ccDateFieldClear('cal-ev-end', 'cal-ev-end-pv');
   document.getElementById('cal-event-overlay').classList.add('open');
   document.getElementById('cal-ev-title').focus();
 }
 
 function ccCalCloseModal() {
   document.getElementById('cal-event-overlay').classList.remove('open');
+  ccDateFieldClear('cal-ev-start', 'cal-ev-start-pv');
+  ccDateFieldClear('cal-ev-end', 'cal-ev-end-pv');
   CC_CAL_EDITING = null;
 }
 
@@ -4906,6 +5576,23 @@ async function ccCalOpenEvent(id) {
     const ev = (data.events || []).find((e) => e.id === id);
     if (ev) ccCalOpenModal(ev);
   } catch (err) { console.warn('ccCalOpenEvent failed', err); }
+}
+
+function ccCalJumpToMission(taskId) {
+  if (typeof ccShowPage === 'function') ccShowPage('mission');
+  else document.body.setAttribute('data-cc-page', 'mission');
+  // Wait for the Kanban to render, then focus + flash the card.
+  setTimeout(() => {
+    const card = document.querySelector('.mk-card[data-mid="' + (window.CSS && CSS.escape ? CSS.escape(taskId) : taskId) + '"]');
+    if (!card) {
+      // Task may be in a hidden/completed-history state; open the history drawer.
+      if (typeof openTaskHistory === 'function') openTaskHistory();
+      return;
+    }
+    try { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+    card.classList.add('mk-card-flash');
+    setTimeout(() => card.classList.remove('mk-card-flash'), 2000);
+  }, 350);
 }
 
 async function ccCalSaveEvent() {
@@ -5548,6 +6235,7 @@ refreshWorkspacePanels = async function() {
   await ccLoadIdeas();
   await ccLoadDailyBrief();
   await ccLoadMeetings();
+  await ccLoadTranscriptions();
 };
 
 // ── Phase 4d: Meetings ──────────────────────────────────────────────
@@ -5737,6 +6425,396 @@ function ccMeetingStartVoice() {
   const title = document.getElementById('mtg-title').value.trim() || 'Meeting';
   const url = '/warroom?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID) + '&topic=' + encodeURIComponent(title);
   window.open(url, '_blank');
+}
+
+async function ccMeetingTranscribe(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  input.value = ''; // reset for re-upload
+
+  const btn = document.getElementById('mtg-transcribe-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Transcribing...';
+
+  try {
+    const titleEl = document.getElementById('mtg-title');
+    const fd = new FormData();
+    fd.append('file', file);
+    if (titleEl && titleEl.value.trim()) fd.append('title', titleEl.value.trim());
+
+    const r = await fetch('/api/meeting-notes/transcribe?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID), {
+      method: 'POST',
+      body: fd,
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: 'Transcription failed' }));
+      alert(err.error || 'Transcription failed');
+      return;
+    }
+
+    const data = await r.json();
+
+    // Populate meeting notes field with the summary
+    const notesEl = document.getElementById('mtg-notes');
+    if (notesEl) {
+      let notes = '## Summary\\n' + data.summary + '\\n';
+      if (data.keyDecisions && data.keyDecisions.length > 0) {
+        notes += '\\n## Key Decisions\\n' + data.keyDecisions.map(d => '- ' + d).join('\\n') + '\\n';
+      }
+      if (data.actionItems && data.actionItems.length > 0) {
+        notes += '\\n## Action Items\\n' + data.actionItems.map(a => {
+          let line = '- ' + a.task;
+          if (a.owner) line += ' @' + a.owner;
+          if (a.deadline) line += ' (by ' + a.deadline + ')';
+          return line;
+        }).join('\\n') + '\\n';
+      }
+      if (data.attendees && data.attendees.length > 0) {
+        notes += '\\n## Attendees\\n' + data.attendees.map(a => '- ' + a).join('\\n') + '\\n';
+      }
+      notesEl.value = notes;
+    }
+
+    // Auto-fill title if empty
+    if (titleEl && !titleEl.value.trim() && data.title) {
+      titleEl.value = data.title;
+    }
+
+    // Populate action items in the meeting form
+    if (data.actionItems && data.actionItems.length > 0) {
+      for (const ai of data.actionItems) {
+        let text = ai.task;
+        if (ai.owner) text += ' @' + ai.owner;
+        if (ai.deadline) text += ' (by ' + ai.deadline + ')';
+        CC_MTG_ACTIONS.push({ text, completed: false, push_to_tasks: true });
+      }
+      ccMeetingRenderActions();
+    }
+
+    btn.textContent = '✅ Transcribed!';
+    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
+  } catch (err) {
+    alert('Transcription error: ' + (err.message || err));
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+// ── Quick Transcribe (drag-and-drop on Meetings page) ──────────────
+
+async function ccQuickTranscribe(file) {
+  console.log('[Meeting Transcribe] ccQuickTranscribe called', file ? file.name : 'no file');
+  if (!file) { console.warn('[Meeting Transcribe] No file provided'); return; }
+
+  // Validate audio file
+  const validExts = ['.m4a','.mp3','.wav','.ogg','.webm','.aac','.flac'];
+  const ext = (file.name || '').toLowerCase().match(/\\.[^.]+$/);
+  const isAudio = file.type.startsWith('audio/') || (ext && validExts.includes(ext[0]));
+  if (!isAudio) {
+    alert('Please select an audio file (m4a, mp3, wav, ogg, webm, aac, or flac).');
+    return;
+  }
+
+  const zone = document.getElementById('mtg-transcribe-zone');
+  const progress = document.getElementById('mtg-transcribe-progress');
+  const statusEl = document.getElementById('mtg-transcribe-status');
+  if (!zone || !progress || !statusEl) { console.error('[Meeting Transcribe] UI elements not found'); return; }
+
+  zone.style.display = 'none';
+  progress.style.display = '';
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+  statusEl.textContent = 'Uploading ' + file.name + ' (' + sizeMB + ' MB)...';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+
+    console.log('[Meeting Transcribe] Starting upload to /api/meeting-notes/transcribe');
+    statusEl.textContent = 'Transcribing ' + file.name + ' — this may take several minutes for long recordings...';
+
+    const r = await fetch('/api/meeting-notes/transcribe?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID), {
+      method: 'POST',
+      body: fd,
+    });
+
+    console.log('[Meeting Transcribe] Response status:', r.status);
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: 'Transcription failed (HTTP ' + r.status + ')' }));
+      console.error('[Meeting Transcribe] API error:', err);
+      statusEl.textContent = 'Error: ' + (err.error || 'Transcription failed');
+      statusEl.style.color = '#ef4444';
+      setTimeout(() => { progress.style.display = 'none'; zone.style.display = ''; statusEl.style.color = ''; }, 5000);
+      return;
+    }
+
+    const data = await r.json();
+    console.log('[Meeting Transcribe] Success:', data.title);
+    statusEl.textContent = '✅ Done! "' + data.title + '" transcribed successfully.';
+    statusEl.style.color = '#22c55e';
+    setTimeout(() => {
+      progress.style.display = 'none';
+      zone.style.display = '';
+      statusEl.style.color = '';
+    }, 5000);
+
+    // Refresh the transcriptions list
+    await ccLoadTranscriptions();
+  } catch (err) {
+    console.error('[Meeting Transcribe] Error:', err);
+    statusEl.textContent = 'Error: ' + (err.message || 'Network error');
+    statusEl.style.color = '#ef4444';
+    setTimeout(() => { progress.style.display = 'none'; zone.style.display = ''; statusEl.style.color = ''; }, 5000);
+  }
+}
+
+// ── Mic Recording for Meetings ─────────────────────────────────────
+let CC_MIC_RECORDER = null;
+let CC_MIC_STREAM = null;
+let CC_MIC_CHUNKS = [];
+let CC_MIC_TIMER = null;
+let CC_MIC_SECONDS = 0;
+let CC_MIC_PAUSED = false;
+let CC_MIC_DEVICE_ID = null;
+
+function ccFormatRecTime(sec) {
+  var m = Math.floor(sec / 60);
+  var s = sec % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function ccTickRecTimer() {
+  if (CC_MIC_PAUSED) return;
+  CC_MIC_SECONDS++;
+  var el = document.getElementById('mtg-rec-timer');
+  if (el) el.textContent = ccFormatRecTime(CC_MIC_SECONDS);
+}
+
+async function ccPopulateMicList() {
+  try {
+    var devices = await navigator.mediaDevices.enumerateDevices();
+    var mics = devices.filter(function(d) { return d.kind === 'audioinput'; });
+    var sel = document.getElementById('mtg-mic-select');
+    if (!sel) return;
+    sel.innerHTML = mics.map(function(d, i) {
+      var label = d.label || ('Microphone ' + (i + 1));
+      return '<option value="' + d.deviceId + '"' + (d.deviceId === CC_MIC_DEVICE_ID ? ' selected' : '') + '>' + label + '</option>';
+    }).join('');
+    if (!CC_MIC_DEVICE_ID && mics.length > 0) CC_MIC_DEVICE_ID = mics[0].deviceId;
+  } catch (err) { console.warn('[Mic Record] enumerateDevices failed:', err); }
+}
+
+async function ccToggleMicRecording() {
+  // If already recording, treat as stop
+  if (CC_MIC_RECORDER && CC_MIC_RECORDER.state !== 'inactive') {
+    ccStopMicRecording();
+    return;
+  }
+
+  console.log('[Mic Record] Requesting mic access...');
+  try {
+    var constraints = { audio: CC_MIC_DEVICE_ID ? { deviceId: { exact: CC_MIC_DEVICE_ID } } : true };
+    CC_MIC_STREAM = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (err) {
+    console.error('[Mic Record] getUserMedia failed:', err);
+    alert('Microphone access denied. Please allow microphone access in your browser settings and try again.');
+    return;
+  }
+
+  // Populate mic list after permission is granted (labels become available)
+  await ccPopulateMicList();
+
+  // Pick best supported format: prefer webm/opus, fall back to whatever the browser supports
+  var mimeType = 'audio/webm;codecs=opus';
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    mimeType = 'audio/webm';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'audio/mp4';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = ''; // let browser pick default
+      }
+    }
+  }
+  console.log('[Mic Record] Using MIME type:', mimeType || '(browser default)');
+
+  CC_MIC_CHUNKS = [];
+  CC_MIC_SECONDS = 0;
+  CC_MIC_PAUSED = false;
+
+  try {
+    CC_MIC_RECORDER = new MediaRecorder(CC_MIC_STREAM, mimeType ? { mimeType: mimeType } : {});
+  } catch (err) {
+    console.error('[Mic Record] MediaRecorder init failed:', err);
+    alert('Recording not supported in this browser.');
+    CC_MIC_STREAM.getTracks().forEach(function(t) { t.stop(); });
+    CC_MIC_STREAM = null;
+    return;
+  }
+
+  CC_MIC_RECORDER.ondataavailable = function(e) {
+    if (e.data && e.data.size > 0) CC_MIC_CHUNKS.push(e.data);
+  };
+
+  CC_MIC_RECORDER.onstop = function() {
+    console.log('[Mic Record] Recording stopped, chunks:', CC_MIC_CHUNKS.length);
+  };
+
+  CC_MIC_RECORDER.start(1000); // collect data every second for smoother stop
+  CC_MIC_TIMER = setInterval(ccTickRecTimer, 1000);
+
+  // Update UI
+  var zone = document.getElementById('mtg-transcribe-zone');
+  var panel = document.getElementById('mtg-recording-panel');
+  var btn = document.getElementById('mtg-record-btn');
+  var timerEl = document.getElementById('mtg-rec-timer');
+  var pauseBtn = document.getElementById('mtg-rec-pause');
+  if (zone) zone.style.display = 'none';
+  if (panel) panel.style.display = '';
+  if (btn) btn.textContent = '⏹ Stop Recording';
+  if (timerEl) timerEl.textContent = '0:00';
+  if (pauseBtn) { pauseBtn.textContent = '⏸ Pause'; }
+
+  console.log('[Mic Record] Recording started');
+}
+
+async function ccSwitchMic(deviceId) {
+  if (!CC_MIC_RECORDER || CC_MIC_RECORDER.state === 'inactive') {
+    CC_MIC_DEVICE_ID = deviceId;
+    return;
+  }
+  // Hot-swap: stop current stream, start new one with selected device
+  console.log('[Mic Record] Switching mic to:', deviceId);
+  CC_MIC_DEVICE_ID = deviceId;
+
+  // Pause recording, swap stream tracks
+  try {
+    var newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } } });
+    // Stop old tracks
+    if (CC_MIC_STREAM) CC_MIC_STREAM.getTracks().forEach(function(t) { t.stop(); });
+    CC_MIC_STREAM = newStream;
+    // MediaRecorder can't swap streams mid-recording in most browsers,
+    // so we just update CC_MIC_DEVICE_ID for next recording. Inform user.
+    console.log('[Mic Record] Mic will switch on next recording start. Current recording continues with original mic.');
+  } catch (err) {
+    console.warn('[Mic Record] Mic switch failed:', err);
+  }
+}
+
+function ccPauseMicRecording() {
+  if (!CC_MIC_RECORDER) return;
+  var pauseBtn = document.getElementById('mtg-rec-pause');
+  var dot = document.getElementById('mtg-rec-dot');
+  if (CC_MIC_RECORDER.state === 'recording') {
+    CC_MIC_RECORDER.pause();
+    CC_MIC_PAUSED = true;
+    if (pauseBtn) pauseBtn.textContent = '▶ Resume';
+    if (dot) dot.style.animationPlayState = 'paused';
+    console.log('[Mic Record] Paused');
+  } else if (CC_MIC_RECORDER.state === 'paused') {
+    CC_MIC_RECORDER.resume();
+    CC_MIC_PAUSED = false;
+    if (pauseBtn) pauseBtn.textContent = '⏸ Pause';
+    if (dot) dot.style.animationPlayState = 'running';
+    console.log('[Mic Record] Resumed');
+  }
+}
+
+function ccCancelMicRecording() {
+  console.log('[Mic Record] Cancelled');
+  if (CC_MIC_TIMER) { clearInterval(CC_MIC_TIMER); CC_MIC_TIMER = null; }
+  if (CC_MIC_RECORDER && CC_MIC_RECORDER.state !== 'inactive') {
+    CC_MIC_RECORDER.onstop = null; // suppress the onstop handler
+    CC_MIC_RECORDER.stop();
+  }
+  if (CC_MIC_STREAM) { CC_MIC_STREAM.getTracks().forEach(function(t) { t.stop(); }); CC_MIC_STREAM = null; }
+  CC_MIC_RECORDER = null;
+  CC_MIC_CHUNKS = [];
+  CC_MIC_SECONDS = 0;
+  CC_MIC_PAUSED = false;
+
+  var zone = document.getElementById('mtg-transcribe-zone');
+  var panel = document.getElementById('mtg-recording-panel');
+  if (zone) zone.style.display = '';
+  if (panel) panel.style.display = 'none';
+}
+
+async function ccStopMicRecording() {
+  if (!CC_MIC_RECORDER || CC_MIC_RECORDER.state === 'inactive') return;
+
+  console.log('[Mic Record] Stopping recording... duration:', CC_MIC_SECONDS, 'seconds');
+  if (CC_MIC_TIMER) { clearInterval(CC_MIC_TIMER); CC_MIC_TIMER = null; }
+
+  return new Promise(function(resolve) {
+    CC_MIC_RECORDER.onstop = function() {
+      // Stop all mic tracks
+      if (CC_MIC_STREAM) { CC_MIC_STREAM.getTracks().forEach(function(t) { t.stop(); }); CC_MIC_STREAM = null; }
+
+      // Build blob from chunks
+      var mimeType = CC_MIC_RECORDER.mimeType || 'audio/webm';
+      var blob = new Blob(CC_MIC_CHUNKS, { type: mimeType });
+      CC_MIC_CHUNKS = [];
+      CC_MIC_RECORDER = null;
+
+      // Determine file extension from MIME
+      var ext = '.webm';
+      if (mimeType.includes('mp4')) ext = '.m4a';
+      else if (mimeType.includes('ogg')) ext = '.ogg';
+
+      var fileName = 'meeting-recording-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + ext;
+      var file = new File([blob], fileName, { type: mimeType });
+
+      console.log('[Mic Record] Recorded file:', fileName, 'size:', (blob.size / 1024 / 1024).toFixed(2), 'MB');
+
+      // Hide recording panel, feed into existing transcribe pipeline
+      var panel = document.getElementById('mtg-recording-panel');
+      if (panel) panel.style.display = 'none';
+      CC_MIC_PAUSED = false;
+
+      ccQuickTranscribe(file);
+      resolve();
+    };
+
+    CC_MIC_RECORDER.stop();
+  });
+}
+
+async function ccLoadTranscriptions() {
+  const host = document.getElementById('mtg-transcriptions-list');
+  if (!host) return;
+  try {
+    const r = await fetch('/api/meeting-notes?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID) + '&limit=10');
+    if (!r.ok) return;
+    const data = await r.json();
+    const notes = data.notes || [];
+    if (notes.length === 0) { host.innerHTML = ''; return; }
+    host.innerHTML = notes.map(function(n) {
+      const date = n.meeting_date || new Date(n.created_at * 1000).toISOString().split('T')[0];
+      const dur = n.duration_sec ? (Math.floor(n.duration_sec / 60) + 'm') : '';
+      return '<div style="background:var(--card-bg);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;cursor:pointer;" onclick="ccShowTranscription(\\'' + n.id + '\\')">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+        + '<span style="font-family:\\'Bricolage Grotesque\\',sans-serif;font-size:13px;font-weight:600;color:var(--text-primary);">' + (n.title || 'Untitled') + '</span>'
+        + '<span style="font-size:11px;color:var(--text-muted);">' + date + (dur ? ' · ' + dur : '') + '</span>'
+        + '</div></div>';
+    }).join('');
+  } catch (err) { console.warn('ccLoadTranscriptions failed', err); }
+}
+
+async function ccShowTranscription(id) {
+  try {
+    const r = await fetch('/api/meeting-notes/' + id + '?token=' + encodeURIComponent(TOKEN) + '&chatId=' + encodeURIComponent(CHAT_ID));
+    if (!r.ok) return;
+    const data = await r.json();
+    const note = data.note;
+    let summary;
+    try { summary = JSON.parse(note.summary); } catch { summary = {}; }
+    let msg = note.title + '\\n\\n';
+    if (summary.summary) msg += summary.summary + '\\n\\n';
+    if (summary.keyDecisions && summary.keyDecisions.length) msg += 'Key Decisions:\\n' + summary.keyDecisions.map(d => '- ' + d).join('\\n') + '\\n\\n';
+    if (summary.actionItems && summary.actionItems.length) msg += 'Action Items:\\n' + summary.actionItems.map(a => '- ' + a.task + (a.owner ? ' @' + a.owner : '') + (a.deadline ? ' (by ' + a.deadline + ')' : '')).join('\\n') + '\\n';
+    alert(msg);
+  } catch (err) { console.warn('ccShowTranscription failed', err); }
 }
 
 // ── Phase 4b: Intel Pipeline ────────────────────────────────────────
@@ -6200,9 +7278,17 @@ setTimeout(refreshWorkspacePanels, 800);
     <div class="chat-progress-shimmer"></div>
   </div>
   <div class="chat-input-area">
-    <textarea class="chat-textarea" id="chat-input" rows="1" placeholder="Send a message..." oninput="autoResizeInput()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage()}"></textarea>
+    <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+    </button>
+    <input type="file" id="chat-file-input" style="display:none" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.json,.md" onchange="handleFileSelect(this)">
+    <div class="chat-input-wrap">
+      <div id="chat-file-preview" style="display:none"></div>
+      <textarea class="chat-textarea" id="chat-input" rows="1" placeholder="Send a message..." oninput="autoResizeInput()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage()}"></textarea>
+    </div>
     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">Send</button>
   </div>
+  <div class="chat-drop-overlay" id="chat-drop-overlay">Drop file here</div>
 </div>
 
 </body>

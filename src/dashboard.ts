@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server';
 import fs from 'fs';
 import path from 'path';
 import { AGENT_ID, ALLOWED_CHAT_ID, DASHBOARD_PORT, DASHBOARD_TOKEN, PROJECT_ROOT, STORE_DIR, WHATSAPP_ENABLED, SLACK_USER_TOKEN, CONTEXT_LIMIT, agentDefaultModel } from './config.js';
+import { readEnvFile } from './env.js';
 import crypto from 'crypto';
 import {
   getAllScheduledTasks,
@@ -100,7 +101,7 @@ import {
   saveRenderedDocument,
 } from './workspace-db.js';
 import { businessIdForSlug, invalidateWorkspaceCache, resolveSlug } from './workspace-service.js';
-import { WARROOM_ENABLED, WARROOM_PORT } from './config.js';
+import { WARROOM_ENABLED, WARROOM_PORT, TWILIO_VOICE_PORT } from './config.js';
 import { logger } from './logger.js';
 import { getTelegramConnected, getBotInfo, chatEvents, getIsProcessing, abortActiveQuery, ChatEvent } from './state.js';
 
@@ -159,8 +160,12 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ error: 'Internal server error' }, 500);
   });
 
-  // Token auth middleware
+  // Token auth middleware (skip for Twilio webhook endpoints)
   app.use('*', async (c, next) => {
+    const path = new URL(c.req.url).pathname;
+    if (path.startsWith('/twilio-voice/')) {
+      return next();
+    }
     const token = c.req.query('token');
     if (!DASHBOARD_TOKEN || !token || token !== DASHBOARD_TOKEN) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -168,9 +173,14 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     await next();
   });
 
-  // Serve dashboard HTML
+  // Serve dashboard HTML. No-cache headers are critical — the HTML embeds the
+  // inline JS bundle, so if browsers cache it, users see stale JS after a
+  // `launchctl kickstart` deploy and the UI appears broken/unresponsive.
   app.get('/', (c) => {
     const chatId = c.req.query('chatId') || '';
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.html(getDashboardHtml(DASHBOARD_TOKEN, chatId, WARROOM_ENABLED));
   });
 
@@ -1402,6 +1412,81 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     return c.json({ ok: aborted });
   });
 
+  // ── Media serving: serve files from workspace/uploads and /tmp ──
+  app.get('/api/media/*', (c) => {
+    const raw = c.req.path.replace('/api/media/', '');
+    const decoded = decodeURIComponent(raw);
+    // Resolve to absolute path, only allow workspace/uploads and /tmp
+    let filePath: string;
+    if (decoded.startsWith('/')) {
+      filePath = path.resolve(decoded);
+    } else {
+      filePath = path.resolve(PROJECT_ROOT, 'workspace', 'uploads', decoded);
+    }
+    const uploadsDir = path.resolve(PROJECT_ROOT, 'workspace', 'uploads');
+    const allowed = filePath.startsWith(uploadsDir) || filePath.startsWith('/tmp/');
+    if (!allowed) return c.json({ error: 'forbidden' }, 403);
+    if (!fs.existsSync(filePath)) return c.json({ error: 'not found' }, 404);
+
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg',
+      '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.pdf': 'application/pdf',
+      '.json': 'application/json', '.txt': 'text/plain',
+    };
+    const contentType = mimeMap[ext] || 'application/octet-stream';
+    const data = fs.readFileSync(filePath);
+    return new Response(data, {
+      headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=3600' },
+    });
+  });
+
+  // ── File upload from dashboard chat ──
+  app.post('/api/chat/upload', async (c) => {
+    if (!botApi) return c.json({ error: 'Bot API not available' }, 503);
+    try {
+      const formData = await c.req.formData();
+      const file = formData.get('file') as File | null;
+      const caption = (formData.get('caption') as string) || '';
+      if (!file) return c.json({ error: 'No file provided' }, 400);
+
+      // Save to workspace/uploads
+      const uploadsDir = path.resolve(PROJECT_ROOT, 'workspace', 'uploads');
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-]/g, '_');
+      const localFilename = `${Date.now()}_${safeName}`;
+      const localPath = path.join(uploadsDir, localFilename);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      fs.writeFileSync(localPath, buffer);
+
+      // Build message for Claude based on file type
+      const ext = path.extname(file.name).toLowerCase();
+      const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext);
+      const isVideo = ['.mp4', '.webm', '.mov', '.avi'].includes(ext);
+      let msg: string;
+      if (isImage) {
+        msg = `Photo received. File saved at: ${localPath}`;
+        if (caption) msg += `\nCaption: "${caption}"`;
+        msg += '\nPlease analyze this image.';
+      } else if (isVideo) {
+        msg = `Video received. File saved at: ${localPath}`;
+        if (caption) msg += `\nCaption: "${caption}"`;
+        msg += '\nUse the gemini-api-dev skill with the GOOGLE_API_KEY from .env to analyze this video.';
+      } else {
+        msg = `Document received: ${file.name}\nFile saved at: ${localPath}`;
+        if (caption) msg += `\nCaption: "${caption}"`;
+        msg += '\nPlease read and process this file.';
+      }
+
+      void processMessageFromDashboard(botApi, msg);
+      return c.json({ ok: true, path: localPath, serveUrl: `/api/media/${encodeURIComponent(localPath)}` });
+    } catch (err) {
+      return c.json({ error: 'Upload failed' }, 500);
+    }
+  });
+
   // ── Mission Control V1: Workspace-per-business ─────────────────────
   // `?b=<slug>` or path `/b/<slug>` selects the active workspace for the
   // request. `businessIdForSlug` returns null for the cross-business
@@ -1420,6 +1505,9 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     const biz = resolveSlug(slug);
     if (!biz) return c.redirect(`/?token=${DASHBOARD_TOKEN}`, 302);
     const chatId = c.req.query('chatId') || '';
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.html(getDashboardHtml(DASHBOARD_TOKEN, chatId, WARROOM_ENABLED));
   });
 
@@ -1992,7 +2080,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     if (!body?.title?.trim()) return c.json({ error: 'title required' }, 400);
     if (!Number.isFinite(body.start_time)) return c.json({ error: 'start_time (unix seconds) required' }, 400);
     const bizId = businessIdForSlug(getBizSlug(c));
-    const { createMeeting } = await import('./workspace-db.js');
+    const { createMeeting, createCalendarEvent, updateMeeting: linkMeeting } = await import('./workspace-db.js');
     const meeting = createMeeting({
       business_id: bizId,
       title: body.title.trim().slice(0, 200),
@@ -2006,16 +2094,63 @@ export function startDashboard(botApi?: Api<RawApi>): void {
       actions: body.actions ?? [],
       repeat: body.repeat ?? null,
     });
-    return c.json({ meeting }, 201);
+    // Auto-mirror into calendar_events so the Calendar grid shows the meeting
+    // alongside user-created events. The link is stored on the meeting row so
+    // PATCH/DELETE can keep the two in sync.
+    try {
+      const ev = createCalendarEvent({
+        business_id: bizId,
+        title: meeting.title,
+        description: 'Meeting · ' + (meeting.meeting_type || 'standup'),
+        event_type: 'meeting',
+        start_time: meeting.start_time,
+        end_time: meeting.end_time,
+        repeat: meeting.repeat,
+      });
+      const linked = linkMeeting(meeting.id, { calendar_event_id: ev.id });
+      return c.json({ meeting: linked ?? meeting }, 201);
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, meetingId: meeting.id }, '/api/meetings calendar mirror failed (non-fatal)');
+      return c.json({ meeting }, 201);
+    }
   });
 
   app.patch('/api/meetings/:id', async (c) => {
     const id = parseInt(c.req.param('id'), 10);
     if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
     const body = await c.req.json<Record<string, unknown>>();
-    const { updateMeeting } = await import('./workspace-db.js');
+    const { updateMeeting, updateCalendarEvent, createCalendarEvent } = await import('./workspace-db.js');
     const meeting = updateMeeting(id, body as Parameters<typeof updateMeeting>[1]);
     if (!meeting) return c.json({ error: 'not found' }, 404);
+    // Keep the mirrored calendar_event in sync if title/time/repeat changed.
+    const calPatch: Parameters<typeof updateCalendarEvent>[1] = {};
+    if (body.title !== undefined) calPatch.title = meeting.title;
+    if (body.start_time !== undefined) calPatch.start_time = meeting.start_time;
+    if (body.end_time !== undefined) calPatch.end_time = meeting.end_time;
+    if (body.repeat !== undefined) calPatch.repeat = meeting.repeat;
+    if (body.business_id !== undefined) calPatch.business_id = meeting.business_id;
+    if (Object.keys(calPatch).length > 0) {
+      if (meeting.calendar_event_id) {
+        try { updateCalendarEvent(meeting.calendar_event_id, calPatch); }
+        catch (err) { logger.warn({ err: (err as Error).message, meetingId: id }, 'meeting→calendar sync failed'); }
+      } else {
+        // Meeting predates the mirror — back-fill by creating one now.
+        try {
+          const ev = createCalendarEvent({
+            business_id: meeting.business_id,
+            title: meeting.title,
+            description: 'Meeting · ' + (meeting.meeting_type || 'standup'),
+            event_type: 'meeting',
+            start_time: meeting.start_time,
+            end_time: meeting.end_time,
+            repeat: meeting.repeat,
+          });
+          updateMeeting(id, { calendar_event_id: ev.id });
+        } catch (err) {
+          logger.warn({ err: (err as Error).message, meetingId: id }, 'meeting→calendar backfill failed');
+        }
+      }
+    }
     // "Push to Tasks" — if any action item has push_to_tasks=true and isn't already pushed,
     // create a mission_task. We record the push by noting the mission_task id inline.
     try {
@@ -2044,9 +2179,118 @@ export function startDashboard(botApi?: Api<RawApi>): void {
   app.delete('/api/meetings/:id', async (c) => {
     const id = parseInt(c.req.param('id'), 10);
     if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
-    const { deleteMeeting } = await import('./workspace-db.js');
+    const { deleteMeeting, deleteCalendarEvent, getMeeting } = await import('./workspace-db.js');
+    const existing = getMeeting(id);
+    if (existing?.calendar_event_id) {
+      try { deleteCalendarEvent(existing.calendar_event_id); }
+      catch (err) { logger.warn({ err: (err as Error).message, meetingId: id }, 'meeting→calendar delete failed (non-fatal)'); }
+    }
     deleteMeeting(id);
     return c.json({ deleted: true });
+  });
+
+  // ── Meeting Transcription ────────────────────────────────────────
+  // Upload audio → transcribe via whisper-cpp → summarize via Gemini → return notes
+
+  app.post('/api/meeting-notes/transcribe', async (c) => {
+    const body = await c.req.parseBody();
+    const file = body['file'];
+    const titleOverride = typeof body['title'] === 'string' ? body['title'] : undefined;
+
+    if (!file || typeof file === 'string') {
+      return c.json({ error: 'No audio file uploaded. Send as multipart form-data with field "file".' }, 400);
+    }
+
+    const buf = Buffer.from(await file.arrayBuffer());
+    if (buf.length > 200 * 1024 * 1024) {
+      return c.json({ error: 'File too large (max 200MB)' }, 400);
+    }
+
+    // Save uploaded file to temp
+    const ext = path.extname(file.name || 'audio.m4a') || '.m4a';
+    const tmpPath = path.join(STORE_DIR, `meeting-upload-${Date.now()}${ext}`);
+    fs.writeFileSync(tmpPath, buf);
+
+    try {
+      const { getAudioDuration, transcribeMeeting, formatDuration } = await import('./meeting-transcribe.js');
+      const { summarizeMeeting, formatMeetingNote, saveToObsidian } = await import('./meeting-summarize.js');
+      const { saveMeetingNote: dbSave } = await import('./db.js');
+      const crypto = await import('crypto');
+
+      const noteId = crypto.randomUUID();
+      const today = new Date().toISOString().split('T')[0];
+
+      const durationSec = await getAudioDuration(tmpPath);
+      const { transcript, provider } = await transcribeMeeting(tmpPath);
+      const summary = await summarizeMeeting(transcript);
+      const meetingTitle = titleOverride || summary.title;
+
+      const noteContent = formatMeetingNote(summary, transcript, {
+        audioPath: tmpPath,
+        durationSec,
+        date: today,
+        provider,
+      });
+
+      // Try saving to Obsidian
+      let obsidianPath: string | null = null;
+      const envVars = readEnvFile(['MEETING_NOTES_VAULT', 'MEETING_NOTES_FOLDER']);
+      const vault = envVars.MEETING_NOTES_VAULT;
+      if (vault) {
+        obsidianPath = saveToObsidian(
+          noteContent,
+          `${today} ${meetingTitle}`,
+          vault.replace(/^~/, process.env.HOME || ''),
+          envVars.MEETING_NOTES_FOLDER || 'Meeting Notes',
+        );
+      }
+
+      // Save to DB
+      dbSave({
+        id: noteId,
+        title: meetingTitle,
+        audioPath: tmpPath,
+        durationSec,
+        transcript,
+        summary: JSON.stringify(summary),
+        obsidianPath,
+        meetingDate: today,
+      });
+
+      return c.json({
+        id: noteId,
+        title: meetingTitle,
+        duration: formatDuration(durationSec),
+        provider,
+        summary: summary.summary,
+        attendees: summary.attendees,
+        keyDecisions: summary.keyDecisions,
+        actionItems: summary.actionItems,
+        topics: summary.topics,
+        obsidianPath,
+      });
+    } catch (err) {
+      logger.error({ err: (err as Error).message }, 'Meeting transcription failed');
+      return c.json({ error: (err as Error).message || 'Transcription failed' }, 500);
+    } finally {
+      // Clean up temp file after processing
+      try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+    }
+  });
+
+  // List meeting notes
+  app.get('/api/meeting-notes', async (c) => {
+    const { listMeetingNotes: dbList } = await import('./db.js');
+    const limit = parseInt(c.req.query('limit') || '20', 10);
+    return c.json({ notes: dbList(limit) });
+  });
+
+  // Get single meeting note
+  app.get('/api/meeting-notes/:id', async (c) => {
+    const { getMeetingNote: dbGet } = await import('./db.js');
+    const note = dbGet(c.req.param('id'));
+    if (!note) return c.json({ error: 'Not found' }, 404);
+    return c.json({ note });
   });
 
   // Calendar — expands cron expressions for a given month, returns
@@ -2205,4 +2449,71 @@ export function startDashboard(botApi?: Api<RawApi>): void {
       logger.warn({ err }, 'Could not set up War Room WS proxy');
     });
   }
+
+  // ── Twilio Voice: TwiML endpoint + WebSocket proxy ─────────────────
+  // Proxies /twilio-voice/ws to the Python Twilio voice server on TWILIO_VOICE_PORT
+  // and serves /twilio-voice/twiml that returns TwiML for Media Streams.
+  app.post('/twilio-voice/twiml', (c) => {
+    const envVars = readEnvFile(['TWILIO_WEBHOOK_URL']);
+    const webhookUrl = envVars.TWILIO_WEBHOOK_URL || process.env.TWILIO_WEBHOOK_URL || `https://localhost:${DASHBOARD_PORT}`;
+    const wsUrl = webhookUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <Stream url="${wsUrl}/twilio-voice/ws">
+        </Stream>
+    </Connect>
+</Response>`;
+    return c.body(twiml, 200, { 'Content-Type': 'application/xml' });
+  });
+
+  void import('ws').then((wsModule: any) => {
+    const WS = wsModule.default?.WebSocket ?? wsModule.WebSocket;
+    const WSServer = wsModule.default?.WebSocketServer ?? wsModule.WebSocketServer;
+
+    if (WSServer) {
+      const twilioWss = new WSServer({ noServer: true });
+
+      (server as unknown as import('http').Server).on('upgrade', (
+        req: import('http').IncomingMessage,
+        socket: import('stream').Duplex,
+        head: Buffer,
+      ) => {
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        if (url.pathname !== '/twilio-voice/ws') return;
+
+        twilioWss.handleUpgrade(req, socket, head, (clientWs: any) => {
+          const remote = new WS(`ws://127.0.0.1:${TWILIO_VOICE_PORT}/ws`);
+          let remoteReady = false;
+          const buffered: (Buffer | ArrayBuffer | string)[] = [];
+
+          remote.on('open', () => {
+            remoteReady = true;
+            for (const msg of buffered) remote.send(msg);
+            buffered.length = 0;
+          });
+          remote.on('message', (data: Buffer | ArrayBuffer | string) => {
+            if (clientWs.readyState === 1) clientWs.send(data);
+          });
+          remote.on('close', () => clientWs.close());
+          remote.on('error', (err: Error) => {
+            logger.warn({ err }, 'Twilio Voice WS proxy: remote error');
+            try { clientWs.close(1011, 'Twilio voice server error'); } catch { /* ok */ }
+          });
+
+          clientWs.on('message', (data: Buffer | ArrayBuffer | string) => {
+            if (remoteReady) remote.send(data);
+            else buffered.push(data);
+          });
+          clientWs.on('close', () => {
+            if (remote.readyState <= 1) remote.close();
+          });
+        });
+      });
+
+      logger.info('Twilio Voice WebSocket proxy active at /twilio-voice/ws');
+    }
+  }).catch((err: unknown) => {
+    logger.warn({ err }, 'Could not set up Twilio Voice WS proxy');
+  });
 }

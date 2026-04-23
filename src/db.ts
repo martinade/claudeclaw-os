@@ -478,23 +478,53 @@ function createSchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_calendar_events_time ON calendar_events(start_time);
 
     CREATE TABLE IF NOT EXISTS scheduled_meetings (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      business_id    TEXT REFERENCES businesses(id) ON DELETE SET NULL,
-      title          TEXT NOT NULL,
-      start_time     INTEGER NOT NULL,
-      end_time       INTEGER,
-      meeting_type   TEXT NOT NULL DEFAULT 'standup',
-      attendees_json TEXT NOT NULL DEFAULT '[]',
-      prep_notes     TEXT NOT NULL DEFAULT '',
-      notes          TEXT NOT NULL DEFAULT '',
-      agenda_json    TEXT NOT NULL DEFAULT '[]',
-      actions_json   TEXT NOT NULL DEFAULT '[]',
-      repeat         TEXT,
-      archived       INTEGER NOT NULL DEFAULT 0,
-      created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-      updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id       TEXT REFERENCES businesses(id) ON DELETE SET NULL,
+      title             TEXT NOT NULL,
+      start_time        INTEGER NOT NULL,
+      end_time          INTEGER,
+      meeting_type      TEXT NOT NULL DEFAULT 'standup',
+      attendees_json    TEXT NOT NULL DEFAULT '[]',
+      prep_notes        TEXT NOT NULL DEFAULT '',
+      notes             TEXT NOT NULL DEFAULT '',
+      agenda_json       TEXT NOT NULL DEFAULT '[]',
+      actions_json      TEXT NOT NULL DEFAULT '[]',
+      repeat            TEXT,
+      archived          INTEGER NOT NULL DEFAULT 0,
+      calendar_event_id INTEGER REFERENCES calendar_events(id) ON DELETE SET NULL,
+      created_at        INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      updated_at        INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
     CREATE INDEX IF NOT EXISTS idx_scheduled_meetings_biz ON scheduled_meetings(business_id, start_time);
+
+    CREATE TABLE IF NOT EXISTS call_log (
+      sid             TEXT PRIMARY KEY,
+      to_number       TEXT NOT NULL,
+      from_number     TEXT NOT NULL,
+      message         TEXT NOT NULL,
+      voice           TEXT NOT NULL DEFAULT 'Polly.Matthew',
+      status          TEXT NOT NULL DEFAULT 'queued',
+      duration_sec    INTEGER,
+      agent_id        TEXT NOT NULL DEFAULT 'main',
+      created_at      INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_call_log_time ON call_log(created_at DESC);
+
+    -- Meeting transcription notes
+    CREATE TABLE IF NOT EXISTS meeting_notes (
+      id              TEXT PRIMARY KEY,
+      title           TEXT NOT NULL,
+      audio_path      TEXT NOT NULL,
+      duration_sec    INTEGER,
+      transcript      TEXT NOT NULL,
+      summary         TEXT NOT NULL DEFAULT '{}',
+      obsidian_path   TEXT,
+      agent_id        TEXT NOT NULL DEFAULT 'main',
+      meeting_date    TEXT,
+      created_at      INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_meeting_notes_time ON meeting_notes(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_meeting_notes_agent ON meeting_notes(agent_id, created_at DESC);
   `);
 }
 
@@ -572,6 +602,15 @@ function runMigrations(database: Database.Database): void {
   }
   if (!taskColNames.includes('last_status')) {
     database.exec(`ALTER TABLE scheduled_tasks ADD COLUMN last_status TEXT`);
+  }
+
+  // Meetings → Calendar link column (Session 1 — Mission Control loop-close).
+  // Each scheduled_meeting auto-creates a calendar_events row on create and
+  // stores the linking id here so PATCH/DELETE can keep them in sync.
+  const meetingCols = database.prepare(`PRAGMA table_info(scheduled_meetings)`).all() as Array<{ name: string }>;
+  if (meetingCols.length > 0 && !meetingCols.some((c) => c.name === 'calendar_event_id')) {
+    database.exec(`ALTER TABLE scheduled_meetings ADD COLUMN calendar_event_id INTEGER REFERENCES calendar_events(id) ON DELETE SET NULL`);
+    logger.info('Migration: added calendar_event_id to scheduled_meetings');
   }
 
   // ── Memory V2 migration ──────────────────────────────────────────────
@@ -864,6 +903,13 @@ function runMigrations(database: Database.Database): void {
   );
   for (const [slug, name] of renames) {
     renameStmt.run(name, slug, name);
+  }
+
+  // Session summaries: add metrics_json column for performance scoring
+  const ssCols = database.prepare('PRAGMA table_info(session_summaries)').all() as Array<{ name: string }>;
+  if (ssCols.length > 0 && !ssCols.some((c) => c.name === 'metrics_json')) {
+    database.exec(`ALTER TABLE session_summaries ADD COLUMN metrics_json TEXT`);
+    logger.info('Migration: added metrics_json to session_summaries');
   }
 }
 
@@ -2676,21 +2722,122 @@ export function saveSessionSummary(
   keyDecisions: string[],
   turnCount: number,
   totalCost: number,
+  metricsJson?: string,
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(`
-    INSERT INTO session_summaries (session_id, summary, key_decisions, turn_count, total_cost, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(session_id) DO UPDATE SET summary = ?, key_decisions = ?, turn_count = ?, total_cost = ?, created_at = ?
-  `).run(sessionId, summary, JSON.stringify(keyDecisions), turnCount, totalCost, now,
-    summary, JSON.stringify(keyDecisions), turnCount, totalCost, now);
+    INSERT INTO session_summaries (session_id, summary, key_decisions, turn_count, total_cost, created_at, metrics_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET summary = ?, key_decisions = ?, turn_count = ?, total_cost = ?, created_at = ?, metrics_json = ?
+  `).run(sessionId, summary, JSON.stringify(keyDecisions), turnCount, totalCost, now, metricsJson ?? null,
+    summary, JSON.stringify(keyDecisions), turnCount, totalCost, now, metricsJson ?? null);
 }
 
 export function getSessionSummary(sessionId: string): {
-  summary: string; key_decisions: string; turn_count: number; total_cost: number;
+  summary: string; key_decisions: string; turn_count: number; total_cost: number; metrics_json?: string;
 } | undefined {
-  return db.prepare('SELECT summary, key_decisions, turn_count, total_cost FROM session_summaries WHERE session_id = ?')
-    .get(sessionId) as { summary: string; key_decisions: string; turn_count: number; total_cost: number } | undefined;
+  return db.prepare('SELECT summary, key_decisions, turn_count, total_cost, metrics_json FROM session_summaries WHERE session_id = ?')
+    .get(sessionId) as { summary: string; key_decisions: string; turn_count: number; total_cost: number; metrics_json?: string } | undefined;
+}
+
+// ── Query helpers for daily/weekly reflection ─────────────────────────────
+
+export function getMemoriesCreatedSince(chatId: string, sinceTimestamp: number): Array<{
+  id: number; summary: string; source: string; topics: string; importance: number; created_at: number;
+}> {
+  return db.prepare(
+    'SELECT id, summary, source, topics, importance, created_at FROM memories WHERE chat_id = ? AND created_at > ? AND superseded_by IS NULL ORDER BY created_at ASC',
+  ).all(chatId, sinceTimestamp) as Array<{
+    id: number; summary: string; source: string; topics: string; importance: number; created_at: number;
+  }>;
+}
+
+export function getConversationsSince(chatId: string, sinceTimestamp: number, agentId?: string): Array<{
+  role: string; content: string; agent_id: string; created_at: number;
+}> {
+  if (agentId) {
+    return db.prepare(
+      'SELECT role, content, agent_id, created_at FROM conversation_log WHERE chat_id = ? AND agent_id = ? AND created_at > ? ORDER BY created_at ASC',
+    ).all(chatId, agentId, sinceTimestamp) as Array<{
+      role: string; content: string; agent_id: string; created_at: number;
+    }>;
+  }
+  return db.prepare(
+    'SELECT role, content, agent_id, created_at FROM conversation_log WHERE chat_id = ? AND created_at > ? ORDER BY created_at ASC',
+  ).all(chatId, sinceTimestamp) as Array<{
+    role: string; content: string; agent_id: string; created_at: number;
+  }>;
+}
+
+export function getSessionSummariesSince(sinceTimestamp: number): Array<{
+  session_id: string; summary: string; key_decisions: string; turn_count: number; total_cost: number; metrics_json: string | null; created_at: number;
+}> {
+  return db.prepare(
+    'SELECT session_id, summary, key_decisions, turn_count, total_cost, metrics_json, created_at FROM session_summaries WHERE created_at > ? ORDER BY created_at ASC',
+  ).all(sinceTimestamp) as Array<{
+    session_id: string; summary: string; key_decisions: string; turn_count: number; total_cost: number; metrics_json: string | null; created_at: number;
+  }>;
+}
+
+export function getConsolidationsSince(chatId: string, sinceTimestamp: number): Array<{
+  id: number; summary: string; insight: string; created_at: number;
+}> {
+  return db.prepare(
+    'SELECT id, summary, insight, created_at FROM consolidations WHERE chat_id = ? AND created_at > ? ORDER BY created_at ASC',
+  ).all(chatId, sinceTimestamp) as Array<{
+    id: number; summary: string; insight: string; created_at: number;
+  }>;
+}
+
+export function getMemoriesBySource(chatId: string, source: string, sinceTimestamp: number): Array<{
+  id: number; summary: string; importance: number; salience: number; created_at: number;
+}> {
+  return db.prepare(
+    'SELECT id, summary, importance, salience, created_at FROM memories WHERE chat_id = ? AND source = ? AND created_at > ? AND superseded_by IS NULL ORDER BY created_at ASC',
+  ).all(chatId, source, sinceTimestamp) as Array<{
+    id: number; summary: string; importance: number; salience: number; created_at: number;
+  }>;
+}
+
+export function getMemorySourceEffectiveness(chatId: string): Array<{
+  source: string; count: number; avg_salience: number; avg_importance: number;
+}> {
+  return db.prepare(
+    'SELECT source, COUNT(*) as count, AVG(salience) as avg_salience, AVG(importance) as avg_importance FROM memories WHERE chat_id = ? AND superseded_by IS NULL GROUP BY source ORDER BY avg_salience DESC',
+  ).all(chatId) as Array<{
+    source: string; count: number; avg_salience: number; avg_importance: number;
+  }>;
+}
+
+export function getSkillUsageSince(sinceTimestamp: number): Array<{
+  skill_id: string; uses: number; successes: number; total_tokens: number;
+}> {
+  return db.prepare(`
+    SELECT skill_id,
+           COUNT(*) as uses,
+           SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END) as successes,
+           SUM(tokens_used) as total_tokens
+    FROM skill_usage
+    WHERE triggered_at > ?
+    GROUP BY skill_id
+    ORDER BY uses DESC
+  `).all(sinceTimestamp) as Array<{
+    skill_id: string; uses: number; successes: number; total_tokens: number;
+  }>;
+}
+
+export function getSessionTokenStats(sinceTimestamp: number): {
+  total_turns: number; total_cost: number; total_output_tokens: number; compactions: number;
+} {
+  const row = db.prepare(`
+    SELECT COUNT(*) as total_turns,
+           COALESCE(SUM(cost_usd), 0) as total_cost,
+           COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+           COALESCE(SUM(did_compact), 0) as compactions
+    FROM token_usage
+    WHERE created_at > ?
+  `).get(sinceTimestamp) as { total_turns: number; total_cost: number; total_output_tokens: number; compactions: number } | undefined;
+  return row ?? { total_turns: 0, total_cost: 0, total_output_tokens: 0, compactions: 0 };
 }
 
 // ── War Room meeting history ─────────────────────────────────────────────
@@ -2733,4 +2880,85 @@ export function getWarRoomTranscript(meetingId: string): Array<{
   return db.prepare(
     'SELECT speaker, text, created_at FROM warroom_transcript WHERE meeting_id = ? ORDER BY created_at',
   ).all(meetingId) as any[];
+}
+
+// ── Twilio Call Log ─────────────────────────────────────────────────────
+
+export function logCall(
+  sid: string,
+  toNumber: string,
+  fromNumber: string,
+  message: string,
+  voice: string,
+  agentId = 'main',
+): void {
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(
+    `INSERT INTO call_log (sid, to_number, from_number, message, voice, status, agent_id, created_at)
+     VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`,
+  ).run(sid, toNumber, fromNumber, message, voice, agentId, now);
+}
+
+export function updateCallStatus(sid: string, status: string, durationSec?: number): void {
+  db.prepare(
+    `UPDATE call_log SET status = ?, duration_sec = COALESCE(?, duration_sec) WHERE sid = ?`,
+  ).run(status, durationSec ?? null, sid);
+}
+
+export function getCallHistory(limit = 10): Array<{ sid: string; to_number: string; message: string; voice: string; status: string; created_at: number }> {
+  return db.prepare(
+    `SELECT sid, to_number, message, voice, status, created_at FROM call_log ORDER BY created_at DESC LIMIT ?`,
+  ).all(limit) as any[];
+}
+
+// ── Meeting Notes ──────────────────────────────────────────────────────────
+
+export interface MeetingNoteRow {
+  id: string;
+  title: string;
+  audio_path: string;
+  duration_sec: number | null;
+  transcript: string;
+  summary: string;
+  obsidian_path: string | null;
+  agent_id: string;
+  meeting_date: string | null;
+  created_at: number;
+}
+
+export function saveMeetingNote(note: {
+  id: string;
+  title: string;
+  audioPath: string;
+  durationSec: number | null;
+  transcript: string;
+  summary: string;
+  obsidianPath: string | null;
+  agentId?: string;
+  meetingDate?: string;
+}): void {
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(
+    `INSERT INTO meeting_notes (id, title, audio_path, duration_sec, transcript, summary, obsidian_path, agent_id, meeting_date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    note.id, note.title, note.audioPath, note.durationSec ?? null,
+    note.transcript, note.summary, note.obsidianPath ?? null,
+    note.agentId ?? 'main', note.meetingDate ?? null, now,
+  );
+}
+
+export function getMeetingNote(id: string): MeetingNoteRow | null {
+  return (db.prepare(`SELECT * FROM meeting_notes WHERE id = ?`).get(id) as MeetingNoteRow) ?? null;
+}
+
+export function listMeetingNotes(limit = 10, agentId?: string): MeetingNoteRow[] {
+  if (agentId) {
+    return db.prepare(
+      `SELECT id, title, audio_path, duration_sec, obsidian_path, agent_id, meeting_date, created_at FROM meeting_notes WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+    ).all(agentId, limit) as MeetingNoteRow[];
+  }
+  return db.prepare(
+    `SELECT id, title, audio_path, duration_sec, obsidian_path, agent_id, meeting_date, created_at FROM meeting_notes ORDER BY created_at DESC LIMIT ?`,
+  ).all(limit) as MeetingNoteRow[];
 }

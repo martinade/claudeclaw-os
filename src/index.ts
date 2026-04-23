@@ -1,4 +1,5 @@
 import fs from 'fs';
+import net from 'net';
 import path from 'path';
 
 import { loadAgentConfig, listAgentIds, resolveAgentDir, resolveAgentClaudeMd } from './agent-config.js';
@@ -6,12 +7,13 @@ import { createBot } from './bot.js';
 import { checkPendingMigrations } from './migrations.js';
 import { ALLOWED_CHAT_ID, activeBotToken, STORE_DIR, PROJECT_ROOT, CLAUDECLAW_CONFIG, GOOGLE_API_KEY, setAgentOverrides, SECURITY_PIN_HASH, IDLE_LOCK_MINUTES, EMERGENCY_KILL_PHRASE, WARROOM_ENABLED, WARROOM_PORT } from './config.js';
 import { startDashboard } from './dashboard.js';
-import { initDatabase, cleanupOldMissionTasks, insertAuditLog } from './db.js';
+import { initDatabase, cleanupOldMissionTasks, insertAuditLog, logToHiveMind } from './db.js';
 import { initSecurity, setAuditCallback } from './security.js';
 import { logger } from './logger.js';
 import { cleanupOldUploads } from './media.js';
 import { runConsolidation } from './memory-consolidate.js';
 import { runDecaySweep } from './memory.js';
+import { runDailyReflection, runWeeklyDeepConsolidation } from './memory-reflection.js';
 import { initOAuthHealthCheck } from './oauth-health.js';
 import { initOrchestrator } from './orchestrator.js';
 import { initScheduler } from './scheduler.js';
@@ -73,6 +75,8 @@ if (AGENT_ID !== 'main') {
 }
 
 const PID_FILE = path.join(STORE_DIR, `${AGENT_ID === 'main' ? 'claudeclaw' : `agent-${AGENT_ID}`}.pid`);
+const _processStartMs = Date.now();
+let _shuttingDown = false;
 
 function showBanner(): void {
   const bannerPath = path.join(PROJECT_ROOT, 'banner.txt');
@@ -90,10 +94,18 @@ function acquireLock(): void {
     if (fs.existsSync(PID_FILE)) {
       const old = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim(), 10);
       if (!isNaN(old) && old !== process.pid) {
-        try {
-          process.kill(old, 'SIGTERM');
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
-        } catch { /* already dead */ }
+        let alive = false;
+        try { process.kill(old, 0); alive = true; } catch { /* not running */ }
+        if (alive) {
+          logger.warn(
+            { oldPid: old, newPid: process.pid, agentId: AGENT_ID, pidFile: PID_FILE },
+            'acquireLock: killing prior instance — a second ClaudeClaw process tried to start while this one is alive',
+          );
+          try {
+            process.kill(old, 'SIGTERM');
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
+          } catch { /* already dead */ }
+        }
       }
     }
   } catch { /* ignore */ }
@@ -121,6 +133,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Before acquiring the lock (which would kill the running instance), check if the
+  // dashboard port is already bound. If it is, a healthy instance is already running —
+  // exit cleanly so launchd doesn't trigger another restart cycle.
+  if (AGENT_ID === 'main') {
+    const portTaken = await new Promise<boolean>((resolve) => {
+      const tester = net.createServer();
+      tester.once('error', () => resolve(true));
+      tester.once('listening', () => { tester.close(); resolve(false); });
+      tester.listen(parseInt(process.env.DASHBOARD_PORT || '3141', 10), '0.0.0.0');
+    });
+    if (portTaken) {
+      logger.info('Dashboard port already in use — another instance is running. Exiting without killing it.');
+      process.exit(0);
+    }
+  }
+
   acquireLock();
 
   try {
@@ -133,6 +161,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   logger.info('Database ready');
+
+  // Log startup to Hive Mind so the feed shows system activity
+  if (ALLOWED_CHAT_ID) {
+    try {
+      logToHiveMind(AGENT_ID, ALLOWED_CHAT_ID, 'system_start', `${AGENT_ID} agent started (pid ${process.pid})`);
+    } catch { /* db may not be fully ready */ }
+  }
 
   // Initialize security (PIN lock, kill phrase, destructive confirmation, audit)
   initSecurity({
@@ -154,8 +189,19 @@ async function main(): Promise<void> {
     cleanupOldMissionTasks(7);
     setInterval(() => { runDecaySweep(); cleanupOldMissionTasks(7); }, 24 * 60 * 60 * 1000);
 
+    // Per-workspace Daily Brief crons. Each non-archived business has a
+    // `daily_brief_cron` column (default `0 7 * * *`). This walks all workspaces
+    // on a 60-second tick and fires `runDailyBrief(biz)` when the cron is due.
+    try {
+      const { initDailyBriefCrons } = await import('./jobs/daily-brief-cron.js');
+      initDailyBriefCrons();
+    } catch (err) {
+      logger.error({ err }, 'Failed to initialize daily brief crons');
+    }
+
     // Memory consolidation: find patterns across recent memories every 30 minutes
-    if (ALLOWED_CHAT_ID && GOOGLE_API_KEY) {
+    // Uses resilient LLM (Gemini -> Haiku -> CLI) so no API key guard needed
+    if (ALLOWED_CHAT_ID) {
       // Delay first consolidation 2 minutes after startup to let things settle
       setTimeout(() => {
         void runConsolidation(ALLOWED_CHAT_ID).catch((err) =>
@@ -168,6 +214,68 @@ async function main(): Promise<void> {
         );
       }, 30 * 60 * 1000);
       logger.info('Memory consolidation enabled (every 30 min)');
+
+      // Daily reflection at 11 PM — check every 30 minutes
+      let lastDailyReflectionDate = '';
+      setInterval(() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const todayStr = now.toISOString().slice(0, 10);
+        // Run once per day, at or after 11 PM
+        if (hour >= 23 && lastDailyReflectionDate !== todayStr) {
+          lastDailyReflectionDate = todayStr;
+          logger.info('Triggering daily reflection');
+          void runDailyReflection(ALLOWED_CHAT_ID).catch((err) =>
+            logger.error({ err }, 'Daily reflection failed'),
+          );
+        }
+      }, 30 * 60 * 1000);
+
+      // Weekly deep consolidation on Sundays at 10 PM — check every 30 minutes
+      let lastWeeklyReflectionDate = '';
+      setInterval(() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const day = now.getDay(); // 0 = Sunday
+        const todayStr = now.toISOString().slice(0, 10);
+        if (day === 0 && hour >= 22 && lastWeeklyReflectionDate !== todayStr) {
+          lastWeeklyReflectionDate = todayStr;
+          logger.info('Triggering weekly deep consolidation');
+          void runWeeklyDeepConsolidation(ALLOWED_CHAT_ID).catch((err) =>
+            logger.error({ err }, 'Weekly deep consolidation failed'),
+          );
+        }
+      }, 30 * 60 * 1000);
+
+      // Catch-up: if process starts after 11 PM and today's reflection was missed
+      const startupNow = new Date();
+      if (startupNow.getHours() >= 23) {
+        const todayStr = startupNow.toISOString().slice(0, 10);
+        if (lastDailyReflectionDate !== todayStr) {
+          lastDailyReflectionDate = todayStr;
+          logger.info('Catch-up: running missed daily reflection');
+          setTimeout(() => {
+            void runDailyReflection(ALLOWED_CHAT_ID).catch((err) =>
+              logger.error({ err }, 'Catch-up daily reflection failed'),
+            );
+          }, 3 * 60 * 1000); // 3 min delay to let everything initialize
+        }
+      }
+      // Catch-up for weekly: if it's Sunday after 10 PM
+      if (startupNow.getDay() === 0 && startupNow.getHours() >= 22) {
+        const todayStr = startupNow.toISOString().slice(0, 10);
+        if (lastWeeklyReflectionDate !== todayStr) {
+          lastWeeklyReflectionDate = todayStr;
+          logger.info('Catch-up: running missed weekly deep consolidation');
+          setTimeout(() => {
+            void runWeeklyDeepConsolidation(ALLOWED_CHAT_ID).catch((err) =>
+              logger.error({ err }, 'Catch-up weekly consolidation failed'),
+            );
+          }, 5 * 60 * 1000); // 5 min delay
+        }
+      }
+
+      logger.info('Daily reflection (11pm) + weekly consolidation (Sunday 10pm) enabled');
     }
   } else {
     logger.info({ agentId: AGENT_ID }, 'Skipping decay/consolidation (main process owns these)');
@@ -345,15 +453,44 @@ async function main(): Promise<void> {
     logger.warn('ALLOWED_CHAT_ID not set — scheduler disabled (no destination for results)');
   }
 
-  const shutdown = async () => {
-    logger.info('Shutting down...');
+  const shutdown = async (signal: string, extra?: Record<string, unknown>) => {
+    if (_shuttingDown) {
+      logger.warn({ signal }, 'Shutdown already in progress, ignoring duplicate trigger');
+      return;
+    }
+    _shuttingDown = true;
+    const uptimeSec = Math.round((Date.now() - _processStartMs) / 1000);
+    logger.info(
+      { signal, uptimeSec, pid: process.pid, ppid: process.ppid, agentId: AGENT_ID, ...extra },
+      'Shutting down...',
+    );
     setTelegramConnected(false);
     releaseLock();
-    await bot.stop();
-    process.exit(0);
+    try {
+      await bot.stop();
+    } catch (err) {
+      logger.warn({ err }, 'bot.stop threw during shutdown');
+    }
+    // Exit with code 1 so launchd (KeepAlive: SuccessfulExit=false) restarts us.
+    // Only the port-taken early-exit uses code 0 (meaning "healthy instance already running").
+    process.exit(1);
   };
-  process.on('SIGINT', () => void shutdown());
-  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGHUP', () => void shutdown('SIGHUP'));
+  process.on('uncaughtException', (err) => {
+    const detail = err instanceof Error
+      ? { message: err.message, stack: err.stack, name: err.name }
+      : { value: String(err) };
+    logger.fatal({ err: detail }, 'uncaughtException — shutting down');
+    void shutdown('uncaughtException', { err: detail });
+  });
+  process.on('unhandledRejection', (reason) => {
+    const detail = reason instanceof Error
+      ? { message: reason.message, stack: reason.stack, name: reason.name }
+      : { value: String(reason) };
+    logger.error({ reason: detail }, 'unhandledRejection (not shutting down, but should be investigated)');
+  });
 
   logger.info({ agentId: AGENT_ID }, 'Starting ClaudeClaw...');
 

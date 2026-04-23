@@ -711,6 +711,7 @@ export interface ScheduledMeetingRow {
   actions_json: string;
   repeat: string | null;
   archived: number;
+  calendar_event_id: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -788,6 +789,7 @@ export function updateMeeting(
     repeat?: string | null;
     archived?: number;
     business_id?: string | null;
+    calendar_event_id?: number | null;
   },
   db?: Database.Database,
 ): ScheduledMeetingRow | null {

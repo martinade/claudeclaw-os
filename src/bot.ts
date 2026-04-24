@@ -30,7 +30,7 @@ import {
   HOURLY_TOKEN_BUDGET,
   PROJECT_ROOT,
 } from './config.js';
-import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
+import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount, saveSessionSummary } from './db.js';
 import { logger } from './logger.js';
 import { downloadMedia, buildPhotoMessage, buildDocumentMessage, buildVideoMessage } from './media.js';
 import { buildMemoryContext, evaluateMemoryRelevance, saveConversationTurn, shouldNudgeMemory, MEMORY_NUDGE_TEXT } from './memory.js';
@@ -38,9 +38,10 @@ import { classifyMessageComplexity } from './message-classifier.js';
 import { scanForSecrets, redactSecrets } from './exfiltration-guard.js';
 import { trackUsage, getRateStatus } from './rate-tracker.js';
 import { buildCostFooter } from './cost-footer.js';
-import { setHighImportanceCallback } from './memory-ingest.js';
+import { generateJsonResilient } from './llm.js';
+import { ingestConversationTurn, setHighImportanceCallback, getSessionCorrectionCount, resetSessionCorrectionCount } from './memory-ingest.js';
 import { messageQueue } from './message-queue.js';
-import { parseDelegation, delegateToAgent, getAvailableAgents } from './orchestrator.js';
+import { parseDelegation, delegateToAgent, delegateToAgents, getAvailableAgents, MAX_FANOUT_AGENTS } from './orchestrator.js';
 import { emitChatEvent, setProcessing, setActiveAbort, abortActiveQuery } from './state.js';
 import {
   isLocked,
@@ -525,6 +526,7 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
         // Attribute to the delegated agent, not the caller, so memories
         // created from this conversation are tagged with the correct agent.
         saveConversationTurn(chatIdStr, delegation.prompt, response, undefined, delegation.agentId);
+        void ingestConversationTurn(chatIdStr, delegation.prompt, response, delegation.agentId).catch(() => {});
       }
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: response, source: 'telegram' });
 
@@ -627,6 +629,9 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     let lastEditLength = 0;
     const streamingEnabled = STREAM_STRATEGY !== 'off';
 
+    // Regex to strip [SEND_PHOTO:...] and [SEND_FILE:...] markers from streaming display
+    const MARKER_STRIP_RE = /\[SEND_(?:FILE|PHOTO):[^\]]+\]/g;
+
     const onStreamText = streamingEnabled ? (accumulated: string) => {
       const now = Date.now();
       const globalLast = globalStreamLastEdit.get(chatIdStr) ?? 0;
@@ -634,7 +639,8 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
 
       if (now - globalLast < GLOBAL_STREAM_INTERVAL_MS || deltaLen < 20) return;
 
-      let displayText = accumulated;
+      // Strip file markers so they don't flash as raw text during streaming
+      let displayText = accumulated.replace(MARKER_STRIP_RE, '').replace(/\n{3,}/g, '\n\n');
       if (displayText.length > 4000) {
         displayText = '...' + displayText.slice(displayText.length - 3900);
       }
@@ -690,6 +696,11 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     if (result.newSessionId) {
       setSession(chatIdStr, result.newSessionId, AGENT_ID);
       logger.info({ newSessionId: result.newSessionId }, 'Session saved');
+      // Log session start to Hive Mind so the feed shows activity
+      try {
+        const firstWords = message.slice(0, 80).replace(/\n/g, ' ');
+        logToHiveMind(AGENT_ID, chatIdStr, 'session_start', `New session: "${firstWords}"`);
+      } catch { /* non-fatal */ }
     }
 
     let rawResponse = result.text?.trim() || 'Done.';
@@ -711,6 +722,9 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
 
     // Extract file markers before any formatting
     const { text: responseText, files: fileMarkers } = extractFileMarkers(rawResponse);
+    if (fileMarkers.length > 0) {
+      logger.info({ fileCount: fileMarkers.length, files: fileMarkers.map(f => ({ type: f.type, path: f.filePath })) }, 'File markers extracted from response');
+    }
 
     // Add cost footer
     const costFooter = buildCostFooter(SHOW_COST_FOOTER, result.usage, effectiveModel);
@@ -719,6 +733,8 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     // Skip logging for synthetic messages like /respin to avoid self-referential growth.
     if (!skipLog) {
       saveConversationTurn(chatIdStr, message, rawResponse, result.newSessionId ?? sessionId, AGENT_ID);
+      // Fire-and-forget: extract memories from this conversation turn
+      void ingestConversationTurn(chatIdStr, message, rawResponse, AGENT_ID).catch(() => {});
       // Fire-and-forget: evaluate which surfaced memories were useful
       if (surfacedMemoryIds.length > 0) {
         void evaluateMemoryRelevance(surfacedMemoryIds, surfacedMemorySummaries, message, rawResponse).catch(() => {});
@@ -732,15 +748,18 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     for (const file of fileMarkers) {
       try {
         if (!fs.existsSync(file.filePath)) {
+          logger.warn({ filePath: file.filePath }, 'File marker target not found on disk');
           await ctx.reply(`Could not send file: ${file.filePath} (not found)`);
           continue;
         }
+        logger.info({ filePath: file.filePath, type: file.type }, 'Sending file via Telegram');
         const input = new InputFile(file.filePath);
         if (file.type === 'photo') {
           await ctx.replyWithPhoto(input, file.caption ? { caption: file.caption } : undefined);
         } else {
           await ctx.replyWithDocument(input, file.caption ? { caption: file.caption } : undefined);
         }
+        logger.info({ filePath: file.filePath }, 'File sent successfully');
       } catch (fileErr) {
         logger.error({ err: fileErr, filePath: file.filePath }, 'Failed to send file via Telegram');
         await ctx.reply(`Failed to send file: ${file.filePath}`);
@@ -807,6 +826,42 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
         if (compactionCount >= 2) {
           await ctx.reply('Context compacted multiple times. Consider /newchat to keep response quality high.');
         }
+
+        // Fire-and-forget checkpoint summary on compaction
+        void (async () => {
+          try {
+            const compTurns = getSessionConversation(activeSessionId, 20);
+            if (compTurns.length >= 4) {
+              const snippet = compTurns.slice(-15).map(t =>
+                `${t.role}: ${t.content.slice(0, 200)}`
+              ).join('\n');
+              const compSummary = await generateJsonResilient<{
+                summary: string;
+                key_decisions: string[];
+              }>(`Summarize this conversation checkpoint. Return JSON with "summary" (2-3 sentences) and "key_decisions" (array of short strings listing decisions/preferences/rules established).\n\nConversation:\n${snippet}`);
+              if (compSummary) {
+                const corrections = getSessionCorrectionCount();
+                const metrics = {
+                  total_turns: compTurns.length,
+                  corrections,
+                  user_turns: compTurns.filter(t => t.role === 'user').length,
+                  compactions: compactionCount,
+                };
+                saveSessionSummary(
+                  activeSessionId,
+                  compSummary.summary,
+                  compSummary.key_decisions || [],
+                  compTurns.length,
+                  0,
+                  JSON.stringify(metrics),
+                );
+                logger.info({ sessionId: activeSessionId, compaction: compactionCount }, 'Compaction checkpoint summary saved');
+              }
+            }
+          } catch (cErr) {
+            logger.debug({ err: cErr }, 'Compaction summary failed (non-fatal)');
+          }
+        })();
       }
 
       const warning = checkContextWarning(chatIdStr, activeSessionId, result.usage);
@@ -1169,6 +1224,46 @@ export function createBot(): Bot {
           } catch { /* give up */ }
           logger.error({ err }, 'Hive mind LLM summary failed, used fallback');
         }
+
+        // Generate structured session summary with performance metrics
+        try {
+          const allTurns = getSessionConversation(sessionToSummarize, 30);
+          if (allTurns.length >= 4) {
+            const convoSnippet = allTurns.slice(-20).map(t =>
+              `${t.role}: ${t.content.slice(0, 200)}`
+            ).join('\n');
+
+            const summaryResult = await generateJsonResilient<{
+              summary: string;
+              key_decisions: string[];
+            }>(`Summarize this conversation session. Return JSON with "summary" (2-3 sentences) and "key_decisions" (array of short strings listing decisions/preferences/rules established).
+
+Conversation:
+${convoSnippet}`);
+
+            if (summaryResult) {
+              const corrections = getSessionCorrectionCount();
+              const metrics = {
+                total_turns: allTurns.length,
+                corrections,
+                user_turns: allTurns.filter(t => t.role === 'user').length,
+              };
+              saveSessionSummary(
+                sessionToSummarize,
+                summaryResult.summary,
+                summaryResult.key_decisions || [],
+                allTurns.length,
+                0, // cost calculated separately
+                JSON.stringify(metrics),
+              );
+              logger.info({ sessionId: sessionToSummarize, decisions: (summaryResult.key_decisions || []).length }, 'Session summary saved');
+            }
+          }
+        } catch (ssErr) {
+          logger.debug({ err: ssErr }, 'Session summary generation failed (non-fatal)');
+        }
+
+        resetSessionCorrectionCount();
       })();
     }
 
@@ -1882,6 +1977,8 @@ async function processDashboardMessage(
 
     // Save conversation turn
     saveConversationTurn(chatIdStr, text, rawResponse, result.newSessionId ?? sessionId, AGENT_ID);
+    // Fire-and-forget: extract memories from this dashboard conversation turn
+    void ingestConversationTurn(chatIdStr, text, rawResponse, AGENT_ID).catch(() => {});
     if (dashSurfacedIds.length > 0) {
       void evaluateMemoryRelevance(dashSurfacedIds, dashSummaries, text, rawResponse).catch(() => {});
     }
@@ -1923,6 +2020,84 @@ async function processDashboardMessage(
   } finally {
     setProcessing(chatIdStr, false);
   }
+}
+
+// ── Dashboard multi-agent fan-out (Session 2 — Command Centre) ───────
+
+/**
+ * Fan-out a single prompt from the dashboard to multiple agents in parallel.
+ * Unlike `processMessageFromDashboard`, this path does NOT run the main
+ * agent's conversation loop — each target agent is delegated to and the
+ * responses stream back as per-agent `agent_message` SSE events so the
+ * dashboard can render one labelled bubble per agent.
+ */
+export function processFanoutFromDashboard(
+  text: string,
+  agentIds: string[],
+): { ok: true; agents: string[] } | { ok: false; error: string } {
+  if (!ALLOWED_CHAT_ID) return { ok: false, error: 'No allowed chat id' };
+  const chatIdStr = ALLOWED_CHAT_ID;
+
+  // Server-side 4-agent cap (also re-enforced inside delegateToAgents).
+  const capped = agentIds.slice(0, MAX_FANOUT_AGENTS);
+  if (capped.length === 0) return { ok: false, error: 'No agents selected' };
+
+  // Echo the user's message once, as a single bubble, before any agent replies.
+  emitChatEvent({ type: 'user_message', chatId: chatIdStr, content: text, source: 'dashboard' });
+  setProcessing(chatIdStr, true);
+  emitChatEvent({ type: 'fanout_start', chatId: chatIdStr, agents: capped, source: 'dashboard' });
+
+  // Fire-and-forget: per-agent results and aggregate cost stream over SSE.
+  void delegateToAgents(
+    capped,
+    text,
+    chatIdStr,
+    'main',
+    (agentId) => {
+      emitChatEvent({
+        type: 'progress',
+        chatId: chatIdStr,
+        agentId,
+        description: `Delegating to ${agentId}...`,
+      });
+    },
+    (res) => {
+      emitChatEvent({
+        type: 'agent_message',
+        chatId: chatIdStr,
+        agentId: res.agentId,
+        content: res.status === 'completed' ? (res.text ?? '') : `Error: ${res.error ?? 'unknown'}`,
+        status: res.status,
+        durationMs: res.durationMs,
+        costUsd: res.usage?.totalCostUsd,
+        inputTokens: res.usage?.inputTokens,
+        outputTokens: res.usage?.outputTokens,
+        source: 'dashboard',
+      });
+    },
+  )
+    .then((summary) => {
+      emitChatEvent({
+        type: 'fanout_complete',
+        chatId: chatIdStr,
+        runId: summary.runId,
+        agents: capped,
+        durationMs: summary.totalDurationMs,
+        costUsd: summary.totalCostUsd,
+        inputTokens: summary.totalInputTokens,
+        outputTokens: summary.totalOutputTokens,
+        source: 'dashboard',
+      });
+    })
+    .catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      emitChatEvent({ type: 'error', chatId: chatIdStr, content: msg });
+    })
+    .finally(() => {
+      setProcessing(chatIdStr, false);
+    });
+
+  return { ok: true, agents: capped };
 }
 
 /**

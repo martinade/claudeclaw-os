@@ -19,6 +19,18 @@ export interface DelegationResult {
   durationMs: number;
 }
 
+/** Max agents allowed in a single fan-out (UI + server enforced). */
+export const MAX_FANOUT_AGENTS = 4;
+
+export interface FanoutResult {
+  runId: string;
+  results: Array<DelegationResult & { status: 'completed' | 'failed'; error?: string }>;
+  totalDurationMs: number;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+}
+
 export interface AgentInfo {
   id: string;
   name: string;
@@ -132,6 +144,7 @@ export async function delegateToAgent(
   fromAgent: string,
   onProgress?: (msg: string) => void,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  runId?: string,
 ): Promise<DelegationResult> {
   const agent = agentRegistry.find((a) => a.id === agentId);
   if (!agent) {
@@ -144,8 +157,8 @@ export async function delegateToAgent(
   const taskId = crypto.randomUUID();
   const start = Date.now();
 
-  // Record the task
-  createInterAgentTask(taskId, fromAgent, agentId, chatId, prompt);
+  // Record the task (run_id groups multi-agent fan-outs; undefined for solo delegations)
+  createInterAgentTask(taskId, fromAgent, agentId, chatId, prompt, runId);
   logToHiveMind(
     fromAgent,
     chatId,
@@ -236,4 +249,122 @@ export async function delegateToAgent(
     );
     throw err;
   }
+}
+
+// ── Multi-agent fan-out ──────────────────────────────────────────────
+
+/**
+ * Fan out a single prompt to multiple agents in parallel. Each agent runs its
+ * own delegation concurrently; the shared `run_id` groups them in
+ * `inter_agent_tasks` for later aggregation. Capped at MAX_FANOUT_AGENTS.
+ *
+ * The returned promise resolves once every agent has either finished or
+ * errored — no agent failure short-circuits the others.
+ *
+ * @param agentIds       Target agents (deduped, filtered to registered, truncated to cap)
+ * @param prompt         The shared task prompt
+ * @param chatId         Telegram chat ID (for DB tracking)
+ * @param fromAgent      Requesting agent (usually 'main')
+ * @param onAgentStart   Fires as soon as a given agent's delegation is kicked off
+ * @param onAgentSettle  Fires when one agent finishes (success or failure) — lets the
+ *                       dashboard render each bubble as soon as it lands instead of
+ *                       waiting for the slowest agent.
+ */
+export async function delegateToAgents(
+  agentIds: string[],
+  prompt: string,
+  chatId: string,
+  fromAgent: string,
+  onAgentStart?: (agentId: string) => void,
+  onAgentSettle?: (
+    result: DelegationResult & { status: 'completed' | 'failed'; error?: string },
+  ) => void,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<FanoutResult> {
+  // Normalise: dedupe, drop unknown, cap at MAX
+  const registered = new Set(agentRegistry.map((a) => a.id));
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const id of agentIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (!registered.has(id)) continue;
+    deduped.push(id);
+    if (deduped.length >= MAX_FANOUT_AGENTS) break;
+  }
+
+  if (deduped.length === 0) {
+    const available = [...registered].join(', ') || '(none)';
+    throw new Error(`No registered agents in fan-out. Available: ${available}`);
+  }
+
+  const runId = crypto.randomUUID();
+  const start = Date.now();
+
+  logger.info(
+    { runId, agents: deduped, promptLen: prompt.length },
+    'Fan-out delegation started',
+  );
+
+  const settled = await Promise.allSettled(
+    deduped.map(async (agentId) => {
+      onAgentStart?.(agentId);
+      const res = await delegateToAgent(
+        agentId,
+        prompt,
+        chatId,
+        fromAgent,
+        undefined, // no per-agent progress string — the UI renders bubbles directly
+        timeoutMs,
+        runId,
+      );
+      const done = { ...res, status: 'completed' as const };
+      onAgentSettle?.(done);
+      return done;
+    }),
+  );
+
+  const results: FanoutResult['results'] = [];
+  let totalCostUsd = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
+  for (let i = 0; i < settled.length; i++) {
+    const s = settled[i];
+    const agentId = deduped[i];
+    if (s.status === 'fulfilled') {
+      results.push(s.value);
+      totalCostUsd += s.value.usage?.totalCostUsd ?? 0;
+      totalInputTokens += s.value.usage?.inputTokens ?? 0;
+      totalOutputTokens += s.value.usage?.outputTokens ?? 0;
+    } else {
+      const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+      const failed = {
+        agentId,
+        text: null,
+        usage: null,
+        taskId: '',
+        durationMs: 0,
+        status: 'failed' as const,
+        error: err,
+      };
+      results.push(failed);
+      onAgentSettle?.(failed);
+    }
+  }
+
+  const totalDurationMs = Date.now() - start;
+  logger.info(
+    { runId, totalDurationMs, results: results.map((r) => ({ id: r.agentId, status: r.status })) },
+    'Fan-out delegation complete',
+  );
+
+  return {
+    runId,
+    results,
+    totalDurationMs,
+    totalCostUsd,
+    totalInputTokens,
+    totalOutputTokens,
+  };
 }

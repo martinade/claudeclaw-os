@@ -54,6 +54,8 @@ import {
   addWarRoomTranscript,
   getWarRoomMeetings,
   getWarRoomTranscript,
+  getChatPreferences,
+  setChatPreferences,
 } from './db.js';
 import { generateContent, parseJsonResponse } from './gemini.js';
 import { getSecurityStatus } from './security.js';
@@ -70,7 +72,8 @@ import {
   suggestBotNames,
   isAgentRunning,
 } from './agent-create.js';
-import { processMessageFromDashboard } from './bot.js';
+import { processMessageFromDashboard, processFanoutFromDashboard } from './bot.js';
+import { MAX_FANOUT_AGENTS } from './orchestrator.js';
 import { getDashboardHtml } from './dashboard-html.js';
 import { getWarRoomHtml } from './warroom-html.js';
 import {
@@ -1402,6 +1405,56 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     // Fire-and-forget: response comes via SSE
     void processMessageFromDashboard(botApi, message);
     return c.json({ ok: true });
+  });
+
+  // Command Centre multi-agent fan-out (Session 2).
+  // Sends one prompt to N agents in parallel (capped at MAX_FANOUT_AGENTS).
+  // Results stream back as `agent_message` SSE events; aggregate cost lands
+  // in `fanout_complete`.
+  app.post('/api/chat/fanout', async (c) => {
+    const body = await c.req.json<{ message?: string; agents?: string[] }>();
+    const message = body?.message?.trim();
+    const agents = Array.isArray(body?.agents) ? body!.agents.filter((a) => typeof a === 'string') : [];
+    if (!message) return c.json({ error: 'message required' }, 400);
+    if (agents.length === 0) return c.json({ error: 'agents required' }, 400);
+
+    const result = processFanoutFromDashboard(message, agents);
+    if (!result.ok) return c.json({ error: result.error }, 400);
+    return c.json({ ok: true, agents: result.agents, cap: MAX_FANOUT_AGENTS });
+  });
+
+  // Per-chat Command Centre preferences (chip selection + workspace).
+  app.get('/api/chat/preferences', (c) => {
+    const chatId = c.req.query('chatId') || ALLOWED_CHAT_ID || '';
+    if (!chatId) return c.json({ error: 'chatId required' }, 400);
+    const prefs = getChatPreferences(chatId);
+    return c.json({
+      selectedAgents: prefs?.selectedAgents ?? ['main'],
+      workspaceSlug: prefs?.workspaceSlug ?? null,
+      cap: MAX_FANOUT_AGENTS,
+    });
+  });
+
+  app.put('/api/chat/preferences', async (c) => {
+    const chatId = c.req.query('chatId') || ALLOWED_CHAT_ID || '';
+    if (!chatId) return c.json({ error: 'chatId required' }, 400);
+    const body = await c.req.json<{ selectedAgents?: string[]; workspaceSlug?: string | null }>();
+    const patch: { selectedAgents?: string[]; workspaceSlug?: string | null } = {};
+    if (Array.isArray(body?.selectedAgents)) {
+      patch.selectedAgents = body!.selectedAgents
+        .filter((a) => typeof a === 'string' && a.length > 0)
+        .slice(0, MAX_FANOUT_AGENTS);
+    }
+    if (body?.workspaceSlug !== undefined) {
+      patch.workspaceSlug = body!.workspaceSlug;
+    }
+    setChatPreferences(chatId, patch);
+    const updated = getChatPreferences(chatId);
+    return c.json({
+      ok: true,
+      selectedAgents: updated?.selectedAgents ?? ['main'],
+      workspaceSlug: updated?.workspaceSlug ?? null,
+    });
   });
 
   // Abort current processing

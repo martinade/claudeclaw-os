@@ -911,6 +911,26 @@ function runMigrations(database: Database.Database): void {
     database.exec(`ALTER TABLE session_summaries ADD COLUMN metrics_json TEXT`);
     logger.info('Migration: added metrics_json to session_summaries');
   }
+
+  // Session 2 — Multi-agent Command Centre: shared run_id groups a fan-out's
+  // per-agent tasks under one logical "run" so we can aggregate cost/latency.
+  const iatCols = database.prepare('PRAGMA table_info(inter_agent_tasks)').all() as Array<{ name: string }>;
+  if (iatCols.length > 0 && !iatCols.some((c) => c.name === 'run_id')) {
+    database.exec(`ALTER TABLE inter_agent_tasks ADD COLUMN run_id TEXT`);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_inter_agent_tasks_run ON inter_agent_tasks(run_id)`);
+    logger.info('Migration: added run_id to inter_agent_tasks');
+  }
+
+  // Session 2 — chat_preferences persists per-chat Command Centre state
+  // (selected agent chips + active workspace slug) across reloads / restarts.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS chat_preferences (
+      chat_id         TEXT PRIMARY KEY,
+      selected_agents TEXT NOT NULL DEFAULT '["main"]',
+      workspace_slug  TEXT,
+      updated_at      INTEGER NOT NULL DEFAULT 0
+    );
+  `);
 }
 
 /** @internal - for tests only. Creates a fresh in-memory database. */
@@ -2188,11 +2208,12 @@ export function createInterAgentTask(
   toAgent: string,
   chatId: string,
   prompt: string,
+  runId?: string,
 ): void {
   db.prepare(
-    `INSERT INTO inter_agent_tasks (id, from_agent, to_agent, chat_id, prompt, status, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))`,
-  ).run(id, fromAgent, toAgent, chatId, prompt);
+    `INSERT INTO inter_agent_tasks (id, from_agent, to_agent, chat_id, prompt, status, created_at, run_id)
+     VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'), ?)`,
+  ).run(id, fromAgent, toAgent, chatId, prompt, runId ?? null);
 }
 
 export function completeInterAgentTask(
@@ -2961,4 +2982,49 @@ export function listMeetingNotes(limit = 10, agentId?: string): MeetingNoteRow[]
   return db.prepare(
     `SELECT id, title, audio_path, duration_sec, obsidian_path, agent_id, meeting_date, created_at FROM meeting_notes ORDER BY created_at DESC LIMIT ?`,
   ).all(limit) as MeetingNoteRow[];
+}
+
+// ── Chat preferences (Session 2 — Command Centre persistence) ────────
+
+export interface ChatPreferences {
+  selectedAgents: string[];
+  workspaceSlug: string | null;
+  updatedAt: number;
+}
+
+export function getChatPreferences(chatId: string): ChatPreferences | null {
+  const row = db
+    .prepare(`SELECT selected_agents, workspace_slug, updated_at FROM chat_preferences WHERE chat_id = ?`)
+    .get(chatId) as { selected_agents: string; workspace_slug: string | null; updated_at: number } | undefined;
+  if (!row) return null;
+  let selectedAgents: string[] = ['main'];
+  try {
+    const parsed = JSON.parse(row.selected_agents);
+    if (Array.isArray(parsed)) selectedAgents = parsed.filter((x) => typeof x === 'string');
+  } catch { /* keep default */ }
+  return {
+    selectedAgents,
+    workspaceSlug: row.workspace_slug,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function setChatPreferences(
+  chatId: string,
+  patch: { selectedAgents?: string[]; workspaceSlug?: string | null },
+): void {
+  const now = Math.floor(Date.now() / 1000);
+  const existing = getChatPreferences(chatId);
+  const selectedAgents =
+    patch.selectedAgents !== undefined ? patch.selectedAgents : existing?.selectedAgents ?? ['main'];
+  const workspaceSlug =
+    patch.workspaceSlug !== undefined ? patch.workspaceSlug : existing?.workspaceSlug ?? null;
+  db.prepare(
+    `INSERT INTO chat_preferences (chat_id, selected_agents, workspace_slug, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(chat_id) DO UPDATE SET
+       selected_agents = excluded.selected_agents,
+       workspace_slug  = excluded.workspace_slug,
+       updated_at      = excluded.updated_at`,
+  ).run(chatId, JSON.stringify(selectedAgents.slice(0, 4)), workspaceSlug, now);
 }

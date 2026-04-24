@@ -29,7 +29,17 @@ export function setTelegramConnected(v: boolean): void {
 // ── Chat event bus (SSE broadcasting) ────────────────────────────────
 
 export interface ChatEvent {
-  type: 'user_message' | 'assistant_message' | 'processing' | 'progress' | 'error' | 'hive_mind';
+  type:
+    | 'user_message'
+    | 'assistant_message'
+    | 'processing'
+    | 'progress'
+    | 'error'
+    | 'hive_mind'
+    // Session 2 — Command Centre multi-agent fan-out:
+    | 'fanout_start'      // emitted when delegateToAgents begins
+    | 'agent_message'     // per-agent labelled response bubble
+    | 'fanout_complete';  // aggregate cost/latency summary
   chatId: string;
   agentId?: string;
   content?: string;
@@ -37,6 +47,14 @@ export interface ChatEvent {
   description?: string;
   processing?: boolean;
   timestamp: number;
+  // Fan-out fields — populated only on fanout_* / agent_message events
+  runId?: string;
+  agents?: string[];
+  durationMs?: number;
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  status?: 'completed' | 'failed';
 }
 
 export const chatEvents = new EventEmitter();

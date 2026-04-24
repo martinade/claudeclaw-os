@@ -208,6 +208,16 @@ const WARROOM_ENABLED = warroomEnabled;
   .chat-bubble-user { background: #3730a3; color: #e0e7ff; align-self: flex-end; border-bottom-right-radius: 4px; }
   .chat-bubble-assistant { background: #1e1e1e; color: #d4d4d8; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #2a2a2a; min-width: 0; }
   .chat-bubble-source { font-size: 10px; color: #6b7280; margin-top: 4px; }
+  /* Session 2 — Command Centre fan-out per-agent bubbles + summary line */
+  .chat-bubble-agent { border-left: 3px solid var(--agent-color, #6b7280); padding-left: 11px; }
+  .chat-bubble-agent.failed { opacity: 0.7; border-left-color: #dc2626; }
+  .chat-agent-label { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--agent-color, #9ca3af); margin-bottom: 4px; font-family: 'Bricolage Grotesque', sans-serif; }
+  .chat-agent-label .chat-agent-dur { color: #6b7280; font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .chat-fanout-summary { align-self: flex-start; font-size: 11px; color: #6b7280; padding: 4px 10px; background: rgba(255,255,255,0.02); border: 1px dashed #2a2a2a; border-radius: 6px; margin-top: 4px; font-family: 'Bricolage Grotesque', sans-serif; }
+  .chat-fanout-summary b { color: #9ca3af; font-weight: 600; }
+  .cc-cmd-agent-chip.selected { color: var(--ws-accent); border-color: var(--ws-accent); background: rgba(var(--ws-accent-rgb), 0.12); font-weight: 600; }
+  .cc-cmd-agent-chip.selected .check { display: inline-flex; }
+  .cc-cmd-agent-chip .check { display: none; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; background: var(--ws-accent); color: #0a0a0a; font-size: 9px; font-weight: 900; }
   .chat-bubble code { background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; font-size: 13px; }
   .chat-bubble pre { background: #111; padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-size: 12px; position: relative; }
   .chat-bubble pre code { background: none; padding: 0; }
@@ -4631,6 +4641,33 @@ function connectChatSSE() {
     if (chatOpen) loadSessionInfo();
   });
 
+  // Session 2 — Command Centre fan-out events.
+  chatSSE.addEventListener('fanout_start', function(e) {
+    try {
+      const ev = JSON.parse(e.data);
+      showProgress('Fanning out to ' + (ev.agents || []).length + ' agents...');
+    } catch {}
+  });
+
+  chatSSE.addEventListener('agent_message', function(e) {
+    try {
+      const ev = JSON.parse(e.data);
+      appendAgentBubble(ev);
+      if (!chatOpen && document.body.classList.contains('cc-command-docked') === false) {
+        unreadCount++; updateFabBadge();
+      }
+    } catch {}
+  });
+
+  chatSSE.addEventListener('fanout_complete', function(e) {
+    try {
+      const ev = JSON.parse(e.data);
+      appendFanoutSummary(ev);
+    } catch {}
+    hideTyping();
+    if (chatOpen) loadSessionInfo();
+  });
+
   chatSSE.addEventListener('processing', function(e) {
     const ev = JSON.parse(e.data);
     if (ev.processing) showTyping(); else hideTyping();
@@ -4664,6 +4701,74 @@ function connectChatSSE() {
 function updateChatStatus(connected) {
   const dot = document.getElementById('chat-status-dot');
   dot.style.background = connected ? '#22c55e' : '#ef4444';
+}
+
+// Session 2 — per-agent color resolver. Uses the existing AGENT_COLORS map
+// for known agents and falls back to a stable hash-derived color for custom
+// agents so each one gets a distinguishable hue.
+function ccAgentColor(agentId) {
+  if (AGENT_COLORS && AGENT_COLORS[agentId]) return AGENT_COLORS[agentId];
+  // Simple deterministic hue from the agent id
+  var h = 0;
+  for (var i = 0; i < agentId.length; i++) h = (h * 31 + agentId.charCodeAt(i)) >>> 0;
+  return 'hsl(' + (h % 360) + ', 55%, 60%)';
+}
+
+function appendAgentBubble(ev) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-msg-wrap assistant-wrap';
+  const bubble = document.createElement('div');
+  const failed = ev.status === 'failed';
+  const color = ccAgentColor(ev.agentId || 'main');
+  bubble.className = 'chat-bubble chat-bubble-assistant chat-bubble-agent' + (failed ? ' failed' : '');
+  bubble.style.setProperty('--agent-color', color);
+  // Header row: agent name + duration badge
+  const label = document.createElement('div');
+  label.className = 'chat-agent-label';
+  var name = (ev.agentId || 'agent');
+  name = name.charAt(0).toUpperCase() + name.slice(1);
+  var durLabel = '';
+  if (typeof ev.durationMs === 'number' && ev.durationMs > 0) {
+    var secs = ev.durationMs / 1000;
+    durLabel = secs >= 10 ? secs.toFixed(0) + 's' : secs.toFixed(1) + 's';
+  }
+  label.innerHTML = '<span>' + ccEscapeHtml(name) + '</span>' + (durLabel ? '<span class="chat-agent-dur">' + durLabel + '</span>' : '');
+  bubble.appendChild(label);
+  const body = document.createElement('div');
+  body.innerHTML = renderMarkdown(ev.content || '');
+  bubble.appendChild(body);
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'chat-msg-copy-btn';
+  copyBtn.title = 'Copy message';
+  copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  copyBtn.onclick = function() { ccCopyMsg(this); };
+  wrap.appendChild(bubble);
+  wrap.appendChild(copyBtn);
+  container.appendChild(wrap);
+  scrollChatBottom();
+}
+
+function appendFanoutSummary(ev) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const line = document.createElement('div');
+  line.className = 'chat-fanout-summary';
+  const n = (ev.agents || []).length;
+  const durSec = typeof ev.durationMs === 'number' ? (ev.durationMs / 1000) : 0;
+  const durLabel = durSec >= 10 ? durSec.toFixed(0) + 's' : durSec.toFixed(1) + 's';
+  const tokens = (ev.inputTokens || 0) + (ev.outputTokens || 0);
+  const tokLabel = tokens > 1000 ? (Math.round(tokens / 100) / 10) + 'k' : tokens.toString();
+  const cost = typeof ev.costUsd === 'number' ? ev.costUsd : 0;
+  const costLabel = cost > 0 ? '$' + (cost >= 0.01 ? cost.toFixed(3) : cost.toFixed(4)) : '—';
+  line.innerHTML =
+    '<b>' + n + ' agent' + (n === 1 ? '' : 's') + '</b> • ' +
+    durLabel + ' • ' +
+    tokLabel + ' tokens • ' +
+    costLabel;
+  container.appendChild(line);
+  scrollChatBottom();
 }
 
 function appendChatBubble(role, content, source, scroll) {
@@ -4894,11 +4999,29 @@ async function sendChatMessage() {
         body: formData,
       });
     } else {
-      await fetch(BASE + '/api/chat/send?token=' + TOKEN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
+      // Session 2 — if the Command Centre is docked AND the user has either
+      // selected >1 agent OR a single non-main agent, fan the prompt out via
+      // /api/chat/fanout. Single-main keeps the existing main-session path so
+      // the primary conversation thread stays continuous.
+      var fanoutTargets = [];
+      var commandDocked = document.body.classList.contains('cc-command-docked');
+      if (commandDocked && Array.isArray(CC_CMD_SELECTED_AGENTS)) {
+        fanoutTargets = CC_CMD_SELECTED_AGENTS.slice(0);
+      }
+      var useFanout = fanoutTargets.length > 0 && !(fanoutTargets.length === 1 && fanoutTargets[0] === 'main');
+      if (useFanout) {
+        await fetch(BASE + '/api/chat/fanout?token=' + TOKEN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, agents: fanoutTargets }),
+        });
+      } else {
+        await fetch(BASE + '/api/chat/send?token=' + TOKEN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+      }
     }
   } catch(e) {
     console.error('Send error', e);
@@ -7120,39 +7243,91 @@ async function ccRunDailyBrief() {
 //   - FAB reappears once the user is off the Command page.
 
 let CC_PREV_PAGE = 'dashboard';
-let CC_CMD_SELECTED_AGENT = 'main';
+// Session 2 — multi-select fan-out. Always keep at least one agent selected.
+let CC_CMD_SELECTED_AGENTS = ['main'];
 let CC_CMD_AGENTS = [];
+let CC_CMD_MAX_AGENTS = 4;
+let CC_CMD_PREFS_LOADED = false;
 
 async function ccCmdLoadAgents() {
   try {
-    const r = await fetch('/api/agents');
-    if (!r.ok) return;
-    const data = await r.json();
-    CC_CMD_AGENTS = (data.agents || []);
+    // Dashboard auth middleware requires ?token= on every API route —
+    // without it this silently 401s and the chip bar falls back to main-only.
+    const data = await api('/api/agents');
+    CC_CMD_AGENTS = (data && data.agents) || [];
   } catch (err) { console.warn('ccCmdLoadAgents failed', err); }
+}
+
+async function ccCmdLoadPrefs() {
+  if (!CHAT_ID) { CC_CMD_PREFS_LOADED = true; return; }
+  try {
+    const data = await api('/api/chat/preferences?chatId=' + encodeURIComponent(CHAT_ID));
+    if (!data) { CC_CMD_PREFS_LOADED = true; return; }
+    if (Array.isArray(data.selectedAgents) && data.selectedAgents.length > 0) {
+      CC_CMD_SELECTED_AGENTS = data.selectedAgents.slice(0, CC_CMD_MAX_AGENTS);
+    }
+    if (typeof data.cap === 'number') CC_CMD_MAX_AGENTS = data.cap;
+    // Apply saved workspace if one is persisted and matches a known slug.
+    if (data.workspaceSlug && typeof ccSetWorkspace === 'function' && CC_WORKSPACES && CC_WORKSPACES.has(data.workspaceSlug)) {
+      if (CC_ACTIVE_SLUG !== data.workspaceSlug) {
+        try { ccSetWorkspace(data.workspaceSlug); } catch {}
+      }
+    }
+  } catch (err) { console.warn('ccCmdLoadPrefs failed', err); }
+  CC_CMD_PREFS_LOADED = true;
+}
+
+async function ccCmdSavePrefs() {
+  if (!CC_CMD_PREFS_LOADED || !CHAT_ID) return;
+  try {
+    await fetch(BASE + '/api/chat/preferences?chatId=' + encodeURIComponent(CHAT_ID) + '&token=' + TOKEN, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selectedAgents: CC_CMD_SELECTED_AGENTS,
+        workspaceSlug: CC_ACTIVE_SLUG || null,
+      }),
+    });
+  } catch (err) { console.warn('ccCmdSavePrefs failed', err); }
 }
 
 function ccCmdRenderAgents() {
   const host = document.getElementById('cmd-agents');
   if (!host) return;
   const fallback = (CC_CMD_AGENTS.length === 0) ? [{ id: 'main', name: 'Main', running: true }] : CC_CMD_AGENTS;
+  const selected = new Set(CC_CMD_SELECTED_AGENTS);
+  const capReached = CC_CMD_SELECTED_AGENTS.length >= CC_CMD_MAX_AGENTS;
   host.innerHTML = fallback.map((a) => {
-    const active = a.id === CC_CMD_SELECTED_AGENT ? ' active' : '';
+    const isSel = selected.has(a.id);
+    const cls = isSel ? ' selected' : '';
+    const disabled = (!isSel && capReached) ? ' disabled' : '';
     const live = a.running ? ' live' : '';
-    return '<button type="button" class="cc-cmd-agent-chip' + active + '" data-agent="' + ccEscapeHtml(a.id) + '" onclick="ccCmdSelectAgent(\\'' + a.id + '\\')" title="' + ccEscapeHtml(a.description || a.id) + '">' +
-      '<span class="dot' + live + '"></span>' + ccEscapeHtml(a.name || a.id) + '</button>';
+    const title = (a.description || a.id) + (disabled ? ' — chip cap reached (' + CC_CMD_MAX_AGENTS + ')' : '');
+    return '<button type="button" class="cc-cmd-agent-chip' + cls + '"' + (disabled ? ' style="opacity:0.45;cursor:not-allowed"' : '') + ' data-agent="' + ccEscapeHtml(a.id) + '" onclick="ccCmdToggleAgent(\\'' + a.id + '\\')" title="' + ccEscapeHtml(title) + '">' +
+      '<span class="dot' + live + '"></span>' + ccEscapeHtml(a.name || a.id) +
+      '<span class="check">✓</span>' +
+      '</button>';
   }).join('');
 }
 
-function ccCmdSelectAgent(agentId) {
-  CC_CMD_SELECTED_AGENT = agentId;
-  ccCmdRenderAgents();
-  // Sync with the chat-overlay's agent tabs if it has a switcher.
-  if (typeof setActiveAgentTab === 'function') {
-    try { setActiveAgentTab(agentId); } catch {}
+function ccCmdToggleAgent(agentId) {
+  const idx = CC_CMD_SELECTED_AGENTS.indexOf(agentId);
+  if (idx >= 0) {
+    // Never let the user deselect the last remaining chip.
+    if (CC_CMD_SELECTED_AGENTS.length <= 1) return;
+    CC_CMD_SELECTED_AGENTS.splice(idx, 1);
+  } else {
+    if (CC_CMD_SELECTED_AGENTS.length >= CC_CMD_MAX_AGENTS) return;
+    CC_CMD_SELECTED_AGENTS.push(agentId);
   }
-  const tabs = document.querySelectorAll('.chat-agent-tab');
-  tabs.forEach((t) => { if (t.dataset && t.dataset.agent === agentId) t.click(); });
+  ccCmdRenderAgents();
+  void ccCmdSavePrefs();
+  // Sync the chat-overlay's single-agent tab to the FIRST selected — this
+  // only affects history/session-info display, not send targets.
+  const primary = CC_CMD_SELECTED_AGENTS[0];
+  if (typeof setActiveAgentTab === 'function') {
+    try { setActiveAgentTab(primary); } catch {}
+  }
 }
 
 function ccCmdRenderWorkspaceOptions() {
@@ -7167,6 +7342,7 @@ function ccCmdRenderWorkspaceOptions() {
 
 function ccCmdOnWorkspaceChange(slug) {
   ccSetWorkspace(slug);
+  void ccCmdSavePrefs();
 }
 
 function ccCmdDock() {
@@ -7217,6 +7393,7 @@ ccShowPage = function(pageId) {
     // Populate + dock AFTER the page is shown so the slot is visible.
     (async () => {
       await ccCmdLoadAgents();
+      await ccCmdLoadPrefs();
       ccCmdRenderWorkspaceOptions();
       ccCmdRenderAgents();
       ccCmdDock();

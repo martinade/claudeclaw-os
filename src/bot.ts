@@ -617,10 +617,12 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
 
     const abortCtrl = new AbortController();
     setActiveAbort(chatIdStr, abortCtrl);
+    let timedOut = false;
 
     // Auto-abort if the agent runs too long (prevents runaway commands from blocking the bot)
     const timeoutId = setTimeout(() => {
       logger.warn({ chatId: chatIdStr, timeoutMs: AGENT_TIMEOUT_MS }, 'Agent query timed out, aborting');
+      timedOut = true;
       abortCtrl.abort();
     }, AGENT_TIMEOUT_MS);
 
@@ -685,7 +687,7 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     // Handle abort (manual /stop or timeout)
     if (result.aborted) {
       setProcessing(chatIdStr, false);
-      const msg = result.text === null
+      const msg = timedOut
         ? `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. The task may have been too complex or a command got stuck. Try breaking it into smaller steps.`
         : 'Stopped.';
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'telegram' });
@@ -1941,8 +1943,10 @@ async function processDashboardMessage(
 
     const abortCtrl = new AbortController();
     setActiveAbort(chatIdStr, abortCtrl);
+    let dashTimedOut = false;
     const dashTimeout = setTimeout(() => {
       logger.warn({ chatId: chatIdStr, timeoutMs: AGENT_TIMEOUT_MS }, 'Dashboard agent query timed out, aborting');
+      dashTimedOut = true;
       abortCtrl.abort();
     }, AGENT_TIMEOUT_MS);
 
@@ -1962,7 +1966,7 @@ async function processDashboardMessage(
 
     // Handle abort
     if (result.aborted) {
-      const msg = result.text === null
+      const msg = dashTimedOut
         ? `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. Try breaking the task into smaller steps.`
         : 'Stopped.';
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'dashboard' });

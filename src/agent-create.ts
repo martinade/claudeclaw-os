@@ -23,6 +23,67 @@ export interface BotInfo {
   username: string;
 }
 
+// ── PreToolUse guard hook ───────────────────────────────────────────
+
+interface HookEntry {
+  type: string;
+  command: string;
+}
+interface HookMatcher {
+  matcher?: string;
+  hooks?: HookEntry[];
+}
+interface ClaudeSettings {
+  hooks?: {
+    PreToolUse?: HookMatcher[];
+    [key: string]: HookMatcher[] | undefined;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Idempotently install the `scripts/guard-launchctl.sh` PreToolUse hook into
+ * `<agentDir>/.claude/settings.json`. Merges with any existing settings so
+ * user overrides are preserved. No-op if the guard script is missing from
+ * the repo. Safe to call on every agent create and on backfill.
+ */
+export function installGuardLaunchctlHook(agentDir: string): void {
+  const guardScript = path.join(PROJECT_ROOT, 'scripts', 'guard-launchctl.sh');
+  if (!fs.existsSync(guardScript)) {
+    logger.warn({ guardScript }, 'guard-launchctl.sh not found; skipping hook install for agent');
+    return;
+  }
+
+  const claudeDir = path.join(agentDir, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  const settingsPath = path.join(claudeDir, 'settings.json');
+
+  let settings: ClaudeSettings = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as ClaudeSettings;
+    } catch (err) {
+      logger.warn({ err, settingsPath }, 'Existing settings.json unparseable; replacing');
+      settings = {};
+    }
+  }
+
+  settings.hooks = settings.hooks ?? {};
+  const preToolUse = (settings.hooks.PreToolUse = settings.hooks.PreToolUse ?? []);
+
+  const alreadyInstalled = preToolUse.some((m) =>
+    (m?.hooks ?? []).some((h) => h?.command === guardScript),
+  );
+  if (!alreadyInstalled) {
+    preToolUse.push({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: guardScript }],
+    });
+  }
+
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', { mode: 0o644 });
+}
+
 export interface CreateAgentOpts {
   id: string;
   name: string;
@@ -177,6 +238,11 @@ export async function createAgent(opts: CreateAgentOpts): Promise<CreateAgentRes
   }
 
   fs.mkdirSync(agentDir, { recursive: true });
+
+  // Install the launchctl self-destruct guard for this agent's cwd so the
+  // PreToolUse hook blocks `launchctl stop|bootout|kickstart|unload` against
+  // com.claudeclaw.* from inside the agent's Claude Code subprocess.
+  installGuardLaunchctlHook(agentDir);
 
   // Resolve template directory
   const templateId = template || '_template';

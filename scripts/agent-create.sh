@@ -108,6 +108,13 @@ echo ""
 echo "Building..."
 npm run build
 
+# Step 7b: Install the launchctl self-destruct guard hook into the agent's
+# .claude/settings.json so its Claude Code subprocess can't SIGTERM its own
+# launchd service. Idempotent — safe to rerun.
+node --input-type=module -e "
+import('./dist/agent-create.js').then((m) => m.installGuardLaunchctlHook('$AGENT_DIR'));
+" 2>/dev/null && echo "Installed launchctl guard hook at $AGENT_DIR/.claude/settings.json"
+
 echo ""
 echo "Agent '$AGENT_ID' created at $AGENT_DIR/"
 echo ""

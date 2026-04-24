@@ -370,9 +370,20 @@ function generateLaunchdPlist(agentId: string): string {
   const nodePath = process.execPath;
   const nodeBinDir = path.dirname(nodePath);
 
-  // Build PATH: node's bin dir first, then standard system paths
+  // Detect where `claude` lives so the sub-agent's LLM fallback can spawn it.
+  // Without this, memory-ingest's Anthropic-CLI tier fails with spawn ENOENT
+  // whenever Gemini is rate-limited. Falls back silently if claude isn't found.
+  let claudeBinDir: string | null = null;
+  try {
+    const claudePath = execSync('command -v claude', { encoding: 'utf8' }).trim();
+    if (claudePath) claudeBinDir = path.dirname(claudePath);
+  } catch { /* claude not on PATH — users will see spawn ENOENT in logs if they hit the fallback */ }
+
+  // Build PATH: node's bin dir + claude's dir + standard system paths
   const systemPaths = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
-  const allPaths = [nodeBinDir, ...systemPaths.filter(p => p !== nodeBinDir)];
+  const frontPaths = [nodeBinDir];
+  if (claudeBinDir && !frontPaths.includes(claudeBinDir)) frontPaths.push(claudeBinDir);
+  const allPaths = [...frontPaths, ...systemPaths.filter(p => !frontPaths.includes(p))];
   const envPath = allPaths.join(':');
 
   const plist = `<?xml version="1.0" encoding="UTF-8"?>

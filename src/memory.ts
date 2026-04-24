@@ -17,7 +17,7 @@ import {
   searchMemories,
 } from './db.js';
 import { cosineSimilarity, embedText } from './embeddings.js';
-import { generateContent, parseJsonResponse } from './gemini.js';
+import { generateJsonResilient } from './llm.js';
 import { logger } from './logger.js';
 import { ingestConversationTurn } from './memory-ingest.js';
 import { buildObsidianContext } from './obsidian.js';
@@ -256,10 +256,10 @@ export async function evaluateMemoryRelevance(
   userMessage: string,
   assistantResponse: string,
 ): Promise<void> {
-  if (surfacedMemoryIds.length === 0 || !GOOGLE_API_KEY) return;
+  if (surfacedMemoryIds.length === 0) return;
 
   try {
-    // Build a list of memories with their content so Gemini can actually judge
+    // Build a list of memories with their content so LLM can actually judge
     const memoryList = surfacedMemoryIds
       .map((id) => `  ${id}: "${(memorySummaries.get(id) ?? '').slice(0, 100)}"`)
       .join('\n');
@@ -272,11 +272,7 @@ Response: ${assistantResponse.slice(0, 500)}
 Memories that were surfaced:
 ${memoryList}`;
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Evaluation timeout')), 5000),
-    );
-    const raw = await Promise.race([generateContent(prompt), timeoutPromise]);
-    const usefulIds = parseJsonResponse<number[]>(raw);
+    const usefulIds = await generateJsonResilient<number[]>(prompt, { timeoutMs: 10_000 });
     if (!usefulIds || !Array.isArray(usefulIds)) return;
 
     batchUpdateMemoryRelevance(surfacedMemoryIds, new Set(usefulIds));

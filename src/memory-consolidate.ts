@@ -1,4 +1,4 @@
-import { generateContent, parseJsonResponse } from './gemini.js';
+import { generateJsonResilient } from './llm.js';
 import {
   getUnconsolidatedMemories,
   saveConsolidationAtomic,
@@ -86,11 +86,10 @@ export async function runConsolidation(chatId: string): Promise<void> {
       JSON.stringify(memoriesJson, null, 2),
     );
 
-    const raw = await generateContent(prompt);
-    const result = parseJsonResponse<ConsolidationResult>(raw);
+    const result = await generateJsonResilient<ConsolidationResult>(prompt, { timeoutMs: 90_000 });
 
     if (!result || !result.summary || !result.insight) {
-      logger.warn({ raw: raw.slice(0, 200) }, 'Consolidation produced invalid result');
+      logger.warn('Consolidation produced no result (LLM unavailable or invalid output)');
       return;
     }
 

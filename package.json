@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:session2": "node test-session2-harden.mjs && bash scripts/session2-endpoint-check.sh",
     "migrate": "tsx scripts/migrate.ts",
     "setup": "tsx scripts/setup.ts",
     "status": "tsx scripts/status.ts",
@@ -38,6 +39,7 @@
     "pino-pretty": "^13.0.0",
     "puppeteer": "^24.41.0",
     "qrcode-terminal": "^0.12.0",
+    "twilio": "^6.0.0",
     "whatsapp-web.js": "^1.34.6"
   },
   "devDependencies": {

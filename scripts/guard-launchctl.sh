@@ -31,8 +31,12 @@ except Exception:
   pass' 2>/dev/null || true)"
 
 # Destructive verbs that take a label or plist argument. `list`, `print`, `blame`
-# are read-only and stay allowed.
-if printf '%s' "$cmd" | /usr/bin/grep -Eiq 'launchctl[[:space:]]+(stop|bootout|kickstart|unload|bootstrap|kill|remove)[^|&;]*com\.claudeclaw'; then
+# are read-only and stay allowed. Only block when the target is the MAIN app
+# service (`com.claudeclaw.app`) since that's the actual parent process of the
+# Claude Code subprocess. Sub-agents (`com.claudeclaw.agent-*`), the watchdog
+# (`com.claudeclaw.watchdog`), and other sibling services are safe to manage
+# from the main agent's context without self-destruct risk.
+if printf '%s' "$cmd" | /usr/bin/grep -Eiq 'launchctl[[:space:]]+(stop|bootout|kickstart|unload|bootstrap|kill|remove)[^|&;]*com\.claudeclaw\.app([^a-zA-Z0-9_-]|$)'; then
   cat >&2 <<'EOF'
 BLOCKED by guard-launchctl.sh: this command would terminate the ClaudeClaw
 launchd service (com.claudeclaw.*) — which is the parent process you are

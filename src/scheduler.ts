@@ -19,8 +19,14 @@ import { formatForTelegram, splitMessage } from './bot.js';
 
 type Sender = (text: string) => Promise<void>;
 
-/** Max time (ms) a scheduled task can run before being killed. */
-const TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+/**
+ * Max time (ms) a scheduled task can run before being killed.
+ * Default: 2 hours. Override with TASK_TIMEOUT_MS env var.
+ * Previously 10 minutes, which killed large multi-step tasks (dashboard overhaul, etc.)
+ * before completion. Scheduled tasks should run to completion unless the user
+ * explicitly cancels or the context window is exhausted.
+ */
+const TASK_TIMEOUT_MS = parseInt(process.env.TASK_TIMEOUT_MS || '7200000', 10); // 2 hours
 
 let sender: Sender;
 
@@ -95,9 +101,10 @@ async function runDueTasks(): Promise<void> {
         clearTimeout(timeout);
 
         if (result.aborted) {
-          updateTaskAfterRun(task.id, nextRun, 'Timed out after 10 minutes', 'timeout');
-          await sender(`⏱ Task timed out after 10m: "${task.prompt.slice(0, 60)}..." — killed.`);
-          logger.warn({ taskId: task.id }, 'Task timed out');
+          const mins = Math.round(TASK_TIMEOUT_MS / 60000);
+          updateTaskAfterRun(task.id, nextRun, `Timed out after ${mins} minutes`, 'timeout');
+          await sender(`⏱ Task timed out after ${mins}m: "${task.prompt.slice(0, 60)}..." — killed.`);
+          logger.warn({ taskId: task.id, timeoutMs: TASK_TIMEOUT_MS }, 'Task timed out');
           return;
         }
 
@@ -157,8 +164,9 @@ async function runDueMissionTasks(): Promise<void> {
       clearTimeout(timeout);
 
       if (result.aborted) {
-        completeMissionTask(mission.id, null, 'failed', 'Timed out after 10 minutes');
-        logger.warn({ missionId: mission.id }, 'Mission task timed out');
+        const mins = Math.round(TASK_TIMEOUT_MS / 60000);
+        completeMissionTask(mission.id, null, 'failed', `Timed out after ${mins} minutes`);
+        logger.warn({ missionId: mission.id, timeoutMs: TASK_TIMEOUT_MS }, 'Mission task timed out');
         try {
           await sender('Mission task timed out: "' + mission.title + '"');
         } catch (sendErr) {

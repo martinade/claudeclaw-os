@@ -316,51 +316,48 @@ fi
 log "L2: telegramConnected=true, health OK"
 
 # ── Layer 3: Stuck Processing Detection ──
-# Check if the bot has been "processing" for too long
-# We track this with a local state file rather than querying the API for processing state,
-# because the /api/health doesn't expose the processing flag directly.
-# Instead, we check the SSE endpoint or use a simpler heuristic:
-# query the DB for the last token_usage entry timestamp vs the session's updated_at.
+# Query the bot's read-only /api/chat/status to see if it is actively processing
+# and, if so, how long the current query has been running. Previously this used
+# POST /api/chat/abort as a probe — that ACTUALLY aborted legitimate in-flight
+# queries whenever IDLE_SEC (time since last token_usage row) crossed the
+# threshold, which kills a fresh 30s message just because the user was away
+# for 10+ minutes beforehand. The GET /api/chat/status endpoint is safe to poll.
+STATUS_JSON=$(curl -sf --max-time 5 \
+  "http://localhost:${DASH_PORT}/api/chat/status?token=${DASH_TOKEN}" 2>/dev/null || echo "")
 
-# Check if DB exists and is readable
-DB_FILE="$STORE_DIR/claudeclaw.db"
-if [ -f "$DB_FILE" ]; then
-  # Get the last activity timestamp (most recent token_usage entry for main agent)
-  LAST_ACTIVITY=$(sqlite3 "$DB_FILE" \
-    "SELECT MAX(created_at) FROM token_usage WHERE agent_id='main';" 2>/dev/null || echo "0")
-  LAST_ACTIVITY="${LAST_ACTIVITY:-0}"
+if [ -n "$STATUS_JSON" ]; then
+  IS_PROCESSING=$(echo "$STATUS_JSON" | grep -o '"processing":[a-z]*' | cut -d':' -f2)
+  RUNNING_MS=$(echo "$STATUS_JSON" | grep -o '"runningForMs":[0-9]*' | cut -d':' -f2)
+  RUNNING_MS="${RUNNING_MS:-0}"
+  RUNNING_SEC=$(( RUNNING_MS / 1000 ))
 
-  NOW_TS="$(now)"
-
-  if [ "$LAST_ACTIVITY" -gt 0 ]; then
-    IDLE_SEC=$(( NOW_TS - LAST_ACTIVITY ))
-    log "L3: Last activity ${IDLE_SEC}s ago"
-
-    # Check for stuck processing: if the session has a very recent updated_at but
-    # token_usage hasn't logged a new entry in > 10 minutes, something might be hung.
-    # We use a two-phase detection: first tick marks "stuck since", second tick acts.
-    if [ "$IDLE_SEC" -gt "$STUCK_THRESHOLD_SEC" ]; then
-      # Check if the bot thinks it's processing by trying the abort endpoint
-      # (it returns { ok: false, reason: "not processing" } if nothing is stuck)
-      PROCESSING_CHECK=$(curl -sf --max-time 5 \
-        "http://localhost:${DASH_PORT}/api/chat/abort?token=${DASH_TOKEN}&chatId=${CHAT_ID}" \
-        -X POST 2>/dev/null || echo "")
-
-      if echo "$PROCESSING_CHECK" | grep -q '"ok":true'; then
-        # The bot WAS processing and we just aborted it
-        log "L3: Bot was stuck processing for ${IDLE_SEC}s. Aborted successfully."
-        alert "WARN" "Aborted stuck query (processing for ${IDLE_SEC}s)."
-        rm -f "$STUCK_FILE"
-      else
-        # Not currently processing, just idle — this is normal
-        log "L3: Bot idle for ${IDLE_SEC}s (not stuck, just quiet)"
-      fi
+  if [ "$IS_PROCESSING" = "true" ] && [ "$RUNNING_SEC" -gt "$STUCK_THRESHOLD_SEC" ]; then
+    # Two-tick confirmation: mark on first detection, act on second tick.
+    if [ -f "$STUCK_FILE" ]; then
+      log "L3: Query genuinely stuck — processing for ${RUNNING_SEC}s across two ticks. Aborting."
+      abort_stuck_query "$DASH_PORT" "$DASH_TOKEN"
+      alert "WARN" "Aborted stuck query (processing for ${RUNNING_SEC}s)."
     else
-      rm -f "$STUCK_FILE"
+      log "L3: Possibly stuck (processing for ${RUNNING_SEC}s). Marking for confirmation next tick."
+      echo "$(now)" > "$STUCK_FILE"
     fi
   else
-    log "L3: No token_usage data yet"
+    # Either idle or processing for < threshold — both are normal.
+    if [ "$IS_PROCESSING" = "true" ]; then
+      log "L3: Bot processing for ${RUNNING_SEC}s (below ${STUCK_THRESHOLD_SEC}s threshold)"
+    else
+      log "L3: Bot idle (not processing)"
+    fi
+    rm -f "$STUCK_FILE"
   fi
+else
+  log "L3: Could not read /api/chat/status — skipping stuck-query check this tick"
+fi
+
+# Check if DB exists and is readable (used for the compaction check below)
+DB_FILE="$STORE_DIR/claudeclaw.db"
+if [ -f "$DB_FILE" ]; then
+  :
 
   # ── Bonus: Session compaction check ──
   # If the current session has 3+ compactions, it's degraded — clear it proactively

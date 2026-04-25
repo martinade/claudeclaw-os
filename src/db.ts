@@ -912,6 +912,13 @@ function runMigrations(database: Database.Database): void {
     logger.info('Migration: added metrics_json to session_summaries');
   }
 
+  // Add icon_url column to businesses for custom workspace logos
+  const bizCols = database.prepare('PRAGMA table_info(businesses)').all() as Array<{ name: string }>;
+  if (bizCols.length > 0 && !bizCols.some((c) => c.name === 'icon_url')) {
+    database.exec(`ALTER TABLE businesses ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`);
+    logger.info('Migration: added icon_url to businesses');
+  }
+
   // Session 2 — Multi-agent Command Centre: shared run_id groups a fan-out's
   // per-agent tasks under one logical "run" so we can aggregate cost/latency.
   const iatCols = database.prepare('PRAGMA table_info(inter_agent_tasks)').all() as Array<{ name: string }>;

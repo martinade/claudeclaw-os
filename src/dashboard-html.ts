@@ -232,8 +232,10 @@ const WARROOM_ENABLED = warroomEnabled;
   .chat-progress-pulse { width: 10px; height: 10px; border-radius: 50%; background: #4f46e5; flex-shrink: 0; animation: progressPulse 1.5s ease-in-out infinite; }
   @keyframes progressPulse { 0%,100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
   .chat-progress-label { font-size: 13px; color: #9ca3af; }
-  .chat-stop-btn { margin-left: auto; background: none; border: 1px solid #4f46e5; color: #4f46e5; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s, color 0.15s; }
+  .chat-stop-btn { margin-left: auto; background: none; border: 1px solid #4f46e5; color: #4f46e5; border-radius: 6px; min-width: 28px; height: 28px; padding: 0 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s; }
   .chat-stop-btn:hover { background: #4f46e5; color: #fff; }
+  .chat-stop-btn.armed { border-color: #dc2626; color: #fff; background: #dc2626; padding: 0 10px; }
+  .chat-stop-btn.armed:hover { background: #b91c1c; border-color: #b91c1c; }
   .chat-progress-shimmer { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; background: linear-gradient(90deg, transparent, #4f46e5, transparent); animation: shimmer 2s ease-in-out infinite; }
   @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
   .chat-input-area { display: flex; gap: 8px; padding: 12px 16px; background: #141414; border-top: 1px solid #2a2a2a; flex-shrink: 0; align-items: flex-end; }
@@ -281,6 +283,7 @@ const WARROOM_ENABLED = warroomEnabled;
   .cc-sidebar-row.command:hover { background: rgba(212,175,55,0.1); }
   .cc-sidebar-row.active-page { color: var(--text-primary); background: rgba(var(--ws-accent-rgb), 0.1); border-left: 2px solid var(--ws-accent); font-weight: 600; }
   .cc-sidebar-icon { font-size: 15px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
+  .cc-sidebar-icon img { width: 20px; height: 20px; border-radius: 0; border: none; outline: none; box-shadow: none; object-fit: contain; vertical-align: middle; background: transparent; display: inline-block; }
   .cc-sidebar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .cc-sidebar-kbd { margin-left: auto; font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
   .cc-sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -327,13 +330,17 @@ const WARROOM_ENABLED = warroomEnabled;
 
   /* Page header shown above the current page's content */
   /* Page header — matches OC MC: big title left, CTA right, meta subline under title */
-  .cc-page-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
-  .cc-page-header-main { flex: 1; min-width: 0; }
-  .cc-page-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .cc-page-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); line-height: 1.1; }
-  .cc-page-meta { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-  .cc-page-subtitle { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
-  .cc-ws-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(var(--ws-accent-rgb), 0.12); color: var(--ws-accent); font-size: 11px; font-weight: 600; font-family: 'Bricolage Grotesque', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid rgba(var(--ws-accent-rgb), 0.3); }
+  .cc-top-row { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border-subtle); }
+  .cc-top-brand { flex-shrink: 0; }
+  .cc-top-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; margin-left: auto; padding-top: 4px; }
+  .cc-page-header { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .cc-page-header-main { width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .cc-page-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 8px; }
+  .cc-page-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); line-height: 1.1; }
+  .cc-page-meta { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 12px; }
+  .cc-page-subtitle { font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+  .cc-ws-pill { display: inline-flex; align-items: center; gap: 18px; padding: 8px 24px; border-radius: 10px; background: rgba(var(--ws-accent-rgb), 0.12); color: var(--ws-accent); font-size: 33px; font-weight: 600; font-family: 'Bricolage Grotesque', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid rgba(var(--ws-accent-rgb), 0.3); }
+  .cc-ws-pill img { border: none; outline: none; box-shadow: none; background: transparent; }
   /* Gold CTA on page header — matches OC MC "+ New Document" button */
   .cc-page-cta { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border: none; border-radius: 4px; background: var(--accent-gold); color: var(--bg-primary); font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: filter 0.15s, transform 0.15s; white-space: nowrap; }
   .cc-page-cta:hover { filter: brightness(1.1); }
@@ -974,13 +981,26 @@ const WARROOM_ENABLED = warroomEnabled;
 <!-- Outer wrapper: single column on mobile, wide on desktop -->
 <div class="max-w-lg lg:max-w-full mx-auto lg:px-6">
 
-<!-- Top bar -->
-<div class="flex items-center justify-between mb-1">
-  <div class="flex items-center gap-3">
-    <h1 class="text-xl font-bold text-white">ClaudeClaw <span style="font-size:13px;font-weight:400;color:#6b7280">Mission Control</span></h1>
-    <span id="device-badge" class="device-badge"></span>
+<!-- Top bar + page header — single row -->
+<div class="cc-top-row">
+  <div class="cc-top-brand">
+    <h1 style="font-size:23px;line-height:1.2;" class="font-bold text-white">ClaudeClaw</h1>
+    <div style="font-size:14px;color:#9ca3af;font-weight:500;margin-top:2px;letter-spacing:0.04em;">Mission Control</div>
+    <span id="device-badge" class="device-badge" style="margin-top:6px;"></span>
   </div>
-  <div class="flex items-center gap-3">
+  <div class="cc-page-header" id="cc-page-header">
+    <div class="cc-page-header-main">
+      <h1 class="cc-page-title" id="cc-page-title">Dashboard</h1>
+      <div class="cc-page-meta">
+        <span class="cc-ws-pill" id="cc-ws-pill"><span id="cc-ws-pill-icon">🌐</span><span id="cc-ws-pill-name">Cross-Business</span></span>
+        <span class="cc-page-subtitle" id="cc-page-subtitle">Portfolio overview</span>
+      </div>
+    </div>
+    <div class="cc-page-header-right">
+      <button type="button" class="cc-page-cta hidden" id="cc-page-cta"></button>
+    </div>
+  </div>
+  <div class="cc-top-actions">
     <span id="last-updated" class="text-xs text-gray-500"></span>
     <button id="refresh-btn" onclick="refreshAll()" class="text-gray-400 hover:text-white transition">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -990,20 +1010,6 @@ const WARROOM_ENABLED = warroomEnabled;
   </div>
 </div>
 <div id="bot-info" class="flex items-center gap-3 mb-4 text-xs text-gray-500" style="display:none"></div>
-
-<!-- Page header (populated by JS on page switch) -->
-<div class="cc-page-header" id="cc-page-header">
-  <div class="cc-page-header-main">
-    <h1 class="cc-page-title" id="cc-page-title">Dashboard</h1>
-    <div class="cc-page-meta">
-      <span class="cc-page-subtitle" id="cc-page-subtitle">Portfolio overview</span>
-      <span class="cc-ws-pill" id="cc-ws-pill"><span id="cc-ws-pill-icon">🌐</span><span id="cc-ws-pill-name">Cross-Business</span></span>
-    </div>
-  </div>
-  <div class="cc-page-header-right">
-    <button type="button" class="cc-page-cta hidden" id="cc-page-cta"></button>
-  </div>
-</div>
 
 <!-- Summary Stats Bar -->
 <div id="summary-bar" class="summary-bar" data-cc-page="dashboard" style="display:none">
@@ -2030,7 +2036,13 @@ function ccUpdateWorkspacePill() {
   if (!biz) return;
   const icon = document.getElementById('cc-ws-pill-icon');
   const name = document.getElementById('cc-ws-pill-name');
-  if (icon) icon.textContent = biz.icon_emoji;
+  if (icon) {
+    if (biz.icon_url) {
+      icon.innerHTML = '<img src="' + biz.icon_url + '" alt="" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;border:none;outline:none;background:transparent;" />';
+    } else {
+      icon.textContent = biz.icon_emoji;
+    }
+  }
   if (name) name.textContent = biz.name;
 }
 
@@ -2107,7 +2119,8 @@ function ccRenderSidebar() {
   const wsRows = workspaces.map((w, i) => {
     const isActive = w.slug === CC_ACTIVE_SLUG ? ' active' : '';
     const kbd = (i < 9) ? '<span class="cc-sidebar-kbd">⌘' + (i+1) + '</span>' : '';
-    return '<a class="cc-sidebar-row ws' + isActive + '" data-slug="' + w.slug + '" onclick="ccSetWorkspace(\\'' + w.slug + '\\')" aria-keyshortcuts="Control+' + (i+1) + ' Meta+' + (i+1) + '"><span class="cc-sidebar-icon">' + w.icon_emoji + '</span><span class="cc-sidebar-label">' + w.name + '</span>' + kbd + '</a>';
+    var iconHtml = (w.icon_url) ? '<img src="' + w.icon_url + '" alt="" style="border:none;outline:none;background:transparent;" />' : w.icon_emoji;
+    return '<a class="cc-sidebar-row ws' + isActive + '" data-slug="' + w.slug + '" onclick="ccSetWorkspace(\\'' + w.slug + '\\')" aria-keyshortcuts="Control+' + (i+1) + ' Meta+' + (i+1) + '"><span class="cc-sidebar-icon">' + iconHtml + '</span><span class="cc-sidebar-label">' + w.name + '</span>' + kbd + '</a>';
   }).join('');
   const renderNavGroup = function(g) {
     const rows = g.items.map(it => {
@@ -2143,6 +2156,11 @@ function ccToggleCreateForm() {
     '  <input type="text" id="cc-ws-name" placeholder="Name" />' +
     '  <input type="text" id="cc-ws-slug" placeholder="slug (auto)" />' +
     '  <input type="text" id="cc-ws-icon" placeholder="🏢 (emoji)" maxlength="4" />' +
+    '  <label style="font-size:11px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0;">' +
+    '    <input type="file" id="cc-ws-icon-file" accept="image/*" style="display:none;" />' +
+    '    <span style="border:1px dashed var(--border-subtle);border-radius:4px;padding:3px 8px;font-size:11px;">Upload logo</span>' +
+    '    <span id="cc-ws-icon-file-name" style="color:var(--text-muted);font-size:10px;"></span>' +
+    '  </label>' +
     '  <input type="text" id="cc-ws-color" placeholder="#FFD700" />' +
     '  <div class="cc-ws-form-btns">' +
     '    <button class="cc-ws-form-btn secondary" onclick="ccToggleCreateForm()">Cancel</button>' +
@@ -2159,6 +2177,11 @@ function ccToggleCreateForm() {
   });
   const slugEl = document.getElementById('cc-ws-slug');
   slugEl && slugEl.addEventListener('input', e => { e.target.dataset.manual = '1'; });
+  const iconFileEl = document.getElementById('cc-ws-icon-file');
+  iconFileEl && iconFileEl.addEventListener('change', e => {
+    const label = document.getElementById('cc-ws-icon-file-name');
+    if (label && e.target.files && e.target.files[0]) label.textContent = e.target.files[0].name;
+  });
 }
 
 async function ccCreateWorkspaceSubmit() {
@@ -2172,6 +2195,14 @@ async function ccCreateWorkspaceSubmit() {
     const err = await r.json().catch(() => ({}));
     alert('Failed: ' + (err.error || r.status));
     return;
+  }
+  const data = await r.json();
+  // Upload icon file if one was selected
+  const iconFileEl = document.getElementById('cc-ws-icon-file');
+  if (iconFileEl && iconFileEl.files && iconFileEl.files[0] && data.workspace) {
+    const fd = new FormData();
+    fd.append('file', iconFileEl.files[0]);
+    await fetch('/api/workspaces/' + encodeURIComponent(data.workspace.id) + '/icon', { method: 'POST', body: fd });
   }
   ccToggleCreateForm();
   await ccLoadWorkspaces();
@@ -5090,10 +5121,37 @@ document.addEventListener('paste', function(e) {
   }
 });
 
+// Two-click confirm so an accidental tap can't kill a long-running query.
+// First click: arm the button (turn red, swap label, start 3s timer).
+// Second click within 3s: actually send the abort.
+let _abortArmedUntil = 0;
 async function abortProcessing() {
-  try {
-    await fetch(BASE + '/api/chat/abort?token=' + TOKEN, { method: 'POST' });
-  } catch(e) { console.error('Abort error', e); }
+  const btn = document.getElementById('chat-stop-btn');
+  const now = Date.now();
+  if (now < _abortArmedUntil) {
+    _abortArmedUntil = 0;
+    if (btn) {
+      btn.classList.remove('armed');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect width="14" height="14" rx="2"/></svg>';
+    }
+    console.info('[abort] confirmed — sending /api/chat/abort');
+    try {
+      await fetch(BASE + '/api/chat/abort?token=' + TOKEN, { method: 'POST' });
+    } catch(e) { console.error('Abort error', e); }
+    return;
+  }
+  _abortArmedUntil = now + 3000;
+  if (btn) {
+    btn.classList.add('armed');
+    btn.innerHTML = '<span style="font-size:10px;font-weight:700;letter-spacing:0.5px">STOP?</span>';
+    setTimeout(() => {
+      if (Date.now() >= _abortArmedUntil && btn) {
+        _abortArmedUntil = 0;
+        btn.classList.remove('armed');
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect width="14" height="14" rx="2"/></svg>';
+      }
+    }, 3100);
+  }
 }
 
 // ── Phase 3: Workspace home + Core Memory + Quick-Add ─────────────

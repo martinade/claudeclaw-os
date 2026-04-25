@@ -10,6 +10,7 @@ export interface Business {
   name: string;
   color_hex: string;
   icon_emoji: string;
+  icon_url: string;
   brief_md: string;
   system_prompt_addendum: string;
   telegram_hashtag: string;
@@ -149,6 +150,7 @@ export function createBusiness(
     name: string;
     color_hex?: string;
     icon_emoji?: string;
+    icon_url?: string;
     brief_md?: string;
     system_prompt_addendum?: string;
     telegram_hashtag?: string;
@@ -161,14 +163,15 @@ export function createBusiness(
   const id = `biz_${input.slug.replace(/[^a-z0-9]/gi, '').toLowerCase()}_${Math.random().toString(36).slice(2, 8)}`;
   const now = Math.floor(Date.now() / 1000);
   d.prepare(
-    `INSERT INTO businesses (id, slug, name, color_hex, icon_emoji, brief_md, system_prompt_addendum, telegram_hashtag, monthly_budget_usd, daily_brief_cron, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO businesses (id, slug, name, color_hex, icon_emoji, icon_url, brief_md, system_prompt_addendum, telegram_hashtag, monthly_budget_usd, daily_brief_cron, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.slug,
     input.name,
     input.color_hex ?? '#FFD700',
     input.icon_emoji ?? '🏢',
+    input.icon_url ?? '',
     input.brief_md ?? '',
     input.system_prompt_addendum ?? '',
     input.telegram_hashtag ?? '',
@@ -188,7 +191,7 @@ export function updateBusiness(
   const existing = getBusinessById(id, d);
   if (!existing) return null;
   const editable: Array<keyof typeof patch> = [
-    'slug', 'name', 'color_hex', 'icon_emoji', 'brief_md',
+    'slug', 'name', 'color_hex', 'icon_emoji', 'icon_url', 'brief_md',
     'system_prompt_addendum', 'telegram_hashtag', 'monthly_budget_usd',
     'daily_brief_cron', 'archived',
   ];

@@ -21,6 +21,8 @@ const envConfig = readEnvFile([
   'GOOGLE_API_KEY',
   'AGENT_TIMEOUT_MS',
   'AGENT_MAX_TURNS',
+  'SESSION_ROTATE_THRESHOLD_MB',
+  'SESSION_ROTATE_NOTIFY',
   'SECURITY_PIN_HASH',
   'IDLE_LOCK_MINUTES',
   'EMERGENCY_KILL_PHRASE',
@@ -149,6 +151,22 @@ export const CONTEXT_LIMIT = parseInt(
   process.env.CONTEXT_LIMIT || envConfig.CONTEXT_LIMIT || '1000000',
   10,
 );
+
+// Auto-rotate the Claude Code session when its JSONL transcript on disk grows
+// past this threshold (MB). 0 or unset = disabled (no rotation, preserves
+// existing behaviour). When rotation fires the session_id in the DB is cleared
+// so the next query starts a fresh Claude Code session; the old JSONL is left
+// on disk untouched. Previous bloat caused the SDK to hang on --resume for
+// minutes before timing out — rotation prevents that failure mode.
+export const SESSION_ROTATE_THRESHOLD_MB = parseInt(
+  process.env.SESSION_ROTATE_THRESHOLD_MB || envConfig.SESSION_ROTATE_THRESHOLD_MB || '0',
+  10,
+);
+
+// When a rotation fires, emit a short notice to the user so they know context
+// was reset. Set to 'false' to rotate silently (logs only). Default: true.
+export const SESSION_ROTATE_NOTIFY =
+  (process.env.SESSION_ROTATE_NOTIFY || envConfig.SESSION_ROTATE_NOTIFY || 'true').toLowerCase() !== 'false';
 
 // Dashboard — web UI for monitoring ClaudeClaw state
 export const DASHBOARD_PORT = parseInt(

@@ -29,6 +29,7 @@ import {
   DAILY_COST_BUDGET,
   HOURLY_TOKEN_BUDGET,
   PROJECT_ROOT,
+  SESSION_ROTATE_NOTIFY,
 } from './config.js';
 import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount, saveSessionSummary } from './db.js';
 import { logger } from './logger.js';
@@ -43,6 +44,7 @@ import { ingestConversationTurn, setHighImportanceCallback, getSessionCorrection
 import { messageQueue } from './message-queue.js';
 import { parseDelegation, delegateToAgent, delegateToAgents, getAvailableAgents, MAX_FANOUT_AGENTS } from './orchestrator.js';
 import { emitChatEvent, setProcessing, setActiveAbort, abortActiveQuery } from './state.js';
+import { maybeRotateSession, rotationNotice } from './session-rotate.js';
 import {
   isLocked,
   lock,
@@ -544,7 +546,17 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
   }
 
   // Fetch session first: if resuming, the model already has the system prompt in context.
-  const sessionId = getSession(chatIdStr, AGENT_ID);
+  let sessionId: string | undefined = getSession(chatIdStr, AGENT_ID);
+
+  // Auto-rotate if the transcript has grown too large to resume cleanly.
+  // Disabled by default (SESSION_ROTATE_THRESHOLD_MB=0).
+  const rotation = maybeRotateSession({ chatId: chatIdStr, agentId: AGENT_ID, sessionId });
+  if (rotation.rotated) {
+    sessionId = undefined;
+    if (SESSION_ROTATE_NOTIFY) {
+      await ctx.reply(rotationNotice(rotation)).catch(() => {});
+    }
+  }
 
   // Build memory context and prepend to message
   const { contextText: memCtx, surfacedMemoryIds, surfacedMemorySummaries } = await buildMemoryContext(chatIdStr, message, AGENT_ID);
@@ -1492,7 +1504,7 @@ ${convoSnippet}`);
   bot.command('stop', async (ctx) => {
     if (!isAuthorised(ctx.chat!.id)) return;
     const chatIdStr = ctx.chat!.id.toString();
-    const aborted = abortActiveQuery(chatIdStr);
+    const aborted = abortActiveQuery(chatIdStr, 'telegram:/stop');
     if (aborted) {
       await ctx.reply('Stopped.');
     } else {
@@ -1917,8 +1929,25 @@ async function processDashboardMessage(
   emitChatEvent({ type: 'user_message', chatId: chatIdStr, content: text, source: 'dashboard' });
   setProcessing(chatIdStr, true);
 
+  // Relay user message to Telegram so both chats stay in sync
   try {
-    const sessionId = getSession(chatIdStr, AGENT_ID);
+    await botApi.sendMessage(parseInt(chatIdStr), `📋 <i>[from Mission Control]</i>\n\n${text.slice(0, 4000)}`, { parse_mode: 'HTML' });
+  } catch (relayErr) {
+    logger.warn({ err: relayErr }, 'Failed to relay dashboard user message to Telegram');
+  }
+
+  try {
+    let sessionId: string | undefined = getSession(chatIdStr, AGENT_ID);
+
+    // Auto-rotate if the transcript has grown too large to resume cleanly.
+    // Disabled by default (SESSION_ROTATE_THRESHOLD_MB=0).
+    const rotation = maybeRotateSession({ chatId: chatIdStr, agentId: AGENT_ID, sessionId });
+    if (rotation.rotated) {
+      sessionId = undefined;
+      if (SESSION_ROTATE_NOTIFY) {
+        emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: rotationNotice(rotation), source: 'dashboard' });
+      }
+    }
 
     const { contextText: memCtx, surfacedMemoryIds: dashSurfacedIds, surfacedMemorySummaries: dashSummaries } = await buildMemoryContext(chatIdStr, text, AGENT_ID);
     const dashParts: string[] = [];

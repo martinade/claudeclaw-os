@@ -79,6 +79,7 @@ import { getWarRoomHtml } from './warroom-html.js';
 import {
   listBusinesses,
   getBusinessBySlug,
+  getBusinessById,
   createBusiness,
   updateBusiness,
   archiveBusiness,
@@ -166,7 +167,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
   // Token auth middleware (skip for Twilio webhook endpoints)
   app.use('*', async (c, next) => {
     const path = new URL(c.req.url).pathname;
-    if (path.startsWith('/twilio-voice/')) {
+    if (path.startsWith('/twilio-voice/') || path.startsWith('/api/media/')) {
       return next();
     }
     const token = c.req.query('token');
@@ -1461,8 +1462,17 @@ export function startDashboard(botApi?: Api<RawApi>): void {
   app.post('/api/chat/abort', (c) => {
     const { chatId } = getIsProcessing();
     if (!chatId) return c.json({ ok: false, reason: 'not_processing' });
-    const aborted = abortActiveQuery(chatId);
+    const ua = c.req.header('user-agent') || 'unknown';
+    const aborted = abortActiveQuery(chatId, `dashboard:stop-button ua=${ua.slice(0, 60)}`);
     return c.json({ ok: aborted });
+  });
+
+  // Read-only processing state. The watchdog probes this (not /api/chat/abort)
+  // to decide whether a query is genuinely stuck before intervening.
+  app.get('/api/chat/status', (c) => {
+    const { processing, chatId, startedAt } = getIsProcessing();
+    const runningForMs = startedAt > 0 ? Date.now() - startedAt : 0;
+    return c.json({ processing, chatId: chatId || null, startedAt, runningForMs });
   });
 
   // ── Media serving: serve files from workspace/uploads and /tmp ──
@@ -1600,6 +1610,41 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     archiveBusiness(c.req.param('id'));
     invalidateWorkspaceCache();
     return c.json({ ok: true });
+  });
+
+  // Workspace icon upload
+  app.post('/api/workspaces/:id/icon', async (c) => {
+    const id = c.req.param('id');
+    const biz = getBusinessById(id);
+    if (!biz) return c.json({ error: 'not found' }, 404);
+
+    try {
+      const formData = await c.req.formData();
+      const file = formData.get('file') as File | null;
+      if (!file) return c.json({ error: 'No file provided. Send as multipart form-data with field "file".' }, 400);
+
+      const ext = path.extname(file.name).toLowerCase();
+      if (!['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) {
+        return c.json({ error: 'Invalid image format. Use PNG, JPG, GIF, WebP, or SVG.' }, 400);
+      }
+
+      const iconsDir = path.resolve(PROJECT_ROOT, 'workspace', 'uploads', 'icons');
+      fs.mkdirSync(iconsDir, { recursive: true });
+
+      const safeName = biz.slug.replace(/[^a-z0-9\-]/gi, '_');
+      const filename = `${safeName}${ext}`;
+      const localPath = path.join(iconsDir, filename);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      fs.writeFileSync(localPath, buffer);
+
+      const iconUrl = `/api/media/icons/${filename}`;
+      const updated = updateBusiness(id, { icon_url: iconUrl } as Parameters<typeof updateBusiness>[1]);
+      invalidateWorkspaceCache();
+      return c.json({ workspace: updated, icon_url: iconUrl });
+    } catch (err) {
+      logger.error({ err }, 'Workspace icon upload failed');
+      return c.json({ error: 'Upload failed' }, 500);
+    }
   });
 
   // Priorities
@@ -1810,7 +1855,7 @@ export function startDashboard(botApi?: Api<RawApi>): void {
     ).get() as { ts: number | null };
 
     return c.json({
-      workspace: { slug: biz.slug, name: biz.name, icon: biz.icon_emoji, color: biz.color_hex },
+      workspace: { slug: biz.slug, name: biz.name, icon: biz.icon_emoji, icon_url: biz.icon_url, color: biz.color_hex },
       today: new Date(now * 1000).toISOString().slice(0, 10),
       schedule: todaySchedule,
       priorities,

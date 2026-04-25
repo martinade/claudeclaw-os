@@ -91,6 +91,97 @@ t('MAX_FANOUT_AGENTS is 4', () => {
   assert.equal(orch.MAX_FANOUT_AGENTS, 4);
 });
 
+// ── Session transcript auto-rotation ─────────────────────────────────────
+
+const rotate = await import(pathToFileURL(`${PROJECT}/dist/session-rotate.js`).href);
+const fs2 = await import('node:fs');
+const os2 = await import('node:os');
+const path2 = await import('node:path');
+
+// Set up a throwaway HOME so we can create fake ~/.claude/projects/... jsonls
+// without touching the user's real transcripts.
+const testHome = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'ccrotate-'));
+const realHome = process.env.HOME;
+process.env.HOME = testHome;
+
+// sessionJsonlPath uses os.homedir() which is cached — compute the slug manually
+// and write fixture files at that path.
+const testCwd = '/fake/project/root';
+const slug = testCwd.replace(/\//g, '-');
+const fakeProjectsDir = path2.join(testHome, '.claude', 'projects', slug);
+fs2.mkdirSync(fakeProjectsDir, { recursive: true });
+
+const writeFake = (sessionId, sizeBytes) => {
+  const p = path2.join(fakeProjectsDir, `${sessionId}.jsonl`);
+  fs2.writeFileSync(p, 'x'.repeat(sizeBytes));
+  return p;
+};
+
+t('rotation disabled when threshold <= 0', () => {
+  const r = rotate.maybeRotateSession({ chatId: 'r-disabled', sessionId: 'sess-1', cwd: testCwd, thresholdMb: 0 });
+  assert.equal(r.rotated, false);
+  assert.equal(r.reason, 'disabled');
+});
+
+t('rotation skipped when no sessionId', () => {
+  const r = rotate.maybeRotateSession({ chatId: 'r-none', sessionId: undefined, cwd: testCwd, thresholdMb: 1 });
+  assert.equal(r.rotated, false);
+  assert.equal(r.reason, 'no-session');
+});
+
+t('rotation fires when jsonl missing (clears stale pointer)', () => {
+  db.setSession('r-missing', 'nonexistent-session-id', 'main');
+  assert.equal(db.getSession('r-missing', 'main'), 'nonexistent-session-id');
+  const r = rotate.maybeRotateSession({ chatId: 'r-missing', sessionId: 'nonexistent-session-id', cwd: testCwd, thresholdMb: 1 });
+  assert.equal(r.rotated, true);
+  assert.equal(r.reason, 'file-missing');
+  assert.equal(db.getSession('r-missing', 'main'), undefined, 'DB pointer should be cleared');
+});
+
+t('rotation skipped when file under threshold', () => {
+  const sessId = 'small-session';
+  writeFake(sessId, 100 * 1024); // 100 KB
+  db.setSession('r-small', sessId, 'main');
+  const r = rotate.maybeRotateSession({ chatId: 'r-small', sessionId: sessId, cwd: testCwd, thresholdMb: 1 });
+  assert.equal(r.rotated, false);
+  assert.equal(r.reason, 'under-threshold');
+  assert.equal(db.getSession('r-small', 'main'), sessId, 'DB pointer should NOT be cleared');
+});
+
+t('rotation fires when file over threshold', () => {
+  const sessId = 'big-session';
+  const filePath = writeFake(sessId, 2 * 1024 * 1024); // 2 MB
+  db.setSession('r-big', sessId, 'main');
+  const r = rotate.maybeRotateSession({ chatId: 'r-big', sessionId: sessId, cwd: testCwd, thresholdMb: 1 });
+  assert.equal(r.rotated, true);
+  assert.equal(r.reason, 'over-threshold');
+  assert.equal(r.previousSessionId, sessId);
+  assert.ok(r.previousSizeBytes >= 2 * 1024 * 1024);
+  assert.equal(r.previousJsonlPath, filePath);
+  assert.equal(db.getSession('r-big', 'main'), undefined, 'DB pointer should be cleared');
+  // Original jsonl should still exist on disk.
+  assert.ok(fs2.existsSync(filePath), 'jsonl file should be preserved');
+});
+
+t('rotationNotice produces a user-readable string', () => {
+  const msg = rotate.rotationNotice({
+    rotated: true, reason: 'over-threshold',
+    previousSizeBytes: 26 * 1024 * 1024,
+    previousJsonlPath: '/fake/path.jsonl',
+    previousSessionId: 'x', thresholdMb: 5,
+  });
+  assert.ok(msg.includes('26.0MB'), 'notice should mention the size');
+  assert.ok(msg.includes('/fake/path.jsonl'), 'notice should mention the old path');
+});
+
+t('rotationNotice returns empty string when not rotated', () => {
+  assert.equal(rotate.rotationNotice({ rotated: false, reason: 'disabled' }), '');
+});
+
+// Cleanup: restore HOME and remove the tempdir.
+process.env.HOME = realHome;
+try { fs2.rmSync(testHome, { recursive: true, force: true }); } catch {}
+
 // ── Summary ──────────────────────────────────────────────────────────────
 
 let ok = 0;

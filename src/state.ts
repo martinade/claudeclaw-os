@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { logger } from './logger.js';
 
 // ── Bot info (set once from onStart, read by dashboard) ─────────────
 
@@ -69,15 +70,17 @@ export function emitChatEvent(event: Omit<ChatEvent, 'timestamp'>): void {
 
 let _processing = false;
 let _processingChatId = '';
+let _processingStartedAt = 0;
 
 export function setProcessing(chatId: string, v: boolean): void {
   _processing = v;
   _processingChatId = v ? chatId : '';
+  _processingStartedAt = v ? Date.now() : 0;
   emitChatEvent({ type: 'processing', chatId, processing: v });
 }
 
-export function getIsProcessing(): { processing: boolean; chatId: string } {
-  return { processing: _processing, chatId: _processingChatId };
+export function getIsProcessing(): { processing: boolean; chatId: string; startedAt: number } {
+  return { processing: _processing, chatId: _processingChatId, startedAt: _processingStartedAt };
 }
 
 // ── Active query abort ──────────────────────────────────────────────
@@ -89,11 +92,14 @@ export function setActiveAbort(chatId: string, ctrl: AbortController | null): vo
   else _activeAbort.delete(chatId);
 }
 
-export function abortActiveQuery(chatId: string): boolean {
+export function abortActiveQuery(chatId: string, reason?: string): boolean {
   const ctrl = _activeAbort.get(chatId);
   if (ctrl) {
     ctrl.abort();
     _activeAbort.delete(chatId);
+    // Log which path triggered the abort so we can distinguish user /stop,
+    // dashboard button click, etc. in the bot log.
+    logger.info({ chatId, reason: reason ?? 'unknown' }, 'Active query aborted');
     return true;
   }
   return false;

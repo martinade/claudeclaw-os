@@ -1497,14 +1497,26 @@ ${WARROOM_ENABLED ? `<div class="card" data-cc-page="dashboard" style="border:1p
 </div>
 
 <!-- Phase 8: Documents -->
-<!-- Ideas panel (Second Brain) -->
+<!-- Ideas panel (Second Brain — 5-Stage Pipeline) -->
 <section id="ideas-panel" class="glass-card ws-panel mt-5" data-cc-page="ideas">
   <div class="ws-panel-header">
     <div>
       <div class="ws-panel-title">Ideas · Second Brain</div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Raw capture. Develop the ones worth developing later.</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Capture raw ideas. AI expands, develops, and converts them into action.</div>
     </div>
-    <button class="ws-panel-add" onclick="ccShowIdeaForm()">+ Add</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="ideas-filter" onchange="ccLoadIdeas()" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 8px;border-radius:6px;font-size:11px;font-family:inherit;">
+        <option value="">All</option>
+        <option value="raw">Raw</option>
+        <option value="expanding">Expanding...</option>
+        <option value="expanded">Expanded</option>
+        <option value="developing">Developing...</option>
+        <option value="developed">Developed</option>
+        <option value="implementing">Implementing</option>
+        <option value="archived">Archived</option>
+      </select>
+      <button class="ws-panel-add" onclick="ccShowIdeaForm()">+ Add</button>
+    </div>
   </div>
   <div id="ideas-form" style="display:none;margin-bottom:12px;"></div>
   <div id="ideas-list"></div>
@@ -1963,7 +1975,7 @@ const CC_PAGE_META = {
                    cta: { label: '+ New Task',     handler: 'openMissionModal()' } },
   'priorities':  { title: 'Priorities',    subtitleFn: () => (window.CC_PRIORITIES_COUNT != null ? (window.CC_PRIORITIES_COUNT + ' open') : 'What matters this week'),
                    cta: { label: '+ Add Priority', handler: 'ccShowPriorityInput()' } },
-  'ideas':       { title: 'Ideas',         subtitleFn: () => 'Second brain',
+  'ideas':       { title: 'Ideas',         subtitleFn: () => (window.CC_IDEAS_COUNT != null ? (window.CC_IDEAS_COUNT + ' ideas') : 'Idea-to-execution pipeline'),
                    cta: { label: '+ New Idea',     handler: 'ccShowIdeaForm()' } },
   'documents':   { title: 'Documents',     subtitleFn: () => (window.CC_DOCUMENTS_COUNT != null ? (window.CC_DOCUMENTS_COUNT + ' saved documents') : 'Templates and renders'),
                    cta: { label: '+ New Document', handler: 'ccDocNew()' } },
@@ -5815,50 +5827,208 @@ refreshWorkspacePanels = async function() {
   await ccLoadCalendar();
 };
 
-// ── Ideas (Second Brain) ───────────────────────────────────────────
+// ── Ideas (Second Brain — 5-Stage Pipeline) ───────────────────────
+window.CC_IDEAS_COUNT = null;
+window._ccIdeaAutoRefresh = null;
+window._ccIdeaEditId = null;
+
+function ccIdeaStatusBadge(status, decision) {
+  const colors = {
+    raw: '#6b7280', expanding: '#f59e0b', expanded: '#3b82f6',
+    developing: '#f59e0b', developed: '#8b5cf6', implementing: '#10b981', archived: '#6b7280',
+  };
+  let label = status;
+  if (status === 'archived' && decision === 'kill') label = 'killed';
+  else if (status === 'archived' && decision === 'park') label = 'parked';
+  const bg = colors[status] || '#6b7280';
+  const isProcessing = status === 'expanding' || status === 'developing';
+  return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#fff;background:' + bg + ';padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:0.5px;">' +
+    (isProcessing ? '<span style="display:inline-block;width:8px;height:8px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></span>' : '') +
+    label + '</span>';
+}
+
+function ccIdeaScorePill(label, score) {
+  if (score == null) return '';
+  const val = (score * 10).toFixed(1);
+  const hue = label === 'Impact' ? (score * 120) : (120 - score * 120);
+  return '<span style="font-size:10px;color:hsl(' + hue + ',70%,55%);background:hsla(' + hue + ',70%,55%,0.1);padding:1px 6px;border-radius:8px;font-weight:600;font-family:\\'JetBrains Mono\\',monospace;">' + label + ' ' + val + '</span>';
+}
+
+function ccRenderIdeaCard(i) {
+  const dt = new Date((i.updated_at || i.created_at) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const tags = (() => { try { return JSON.parse(i.tags_json || '[]'); } catch { return []; } })();
+  const rawText = ccEscapeHtml(i.raw_text || '');
+  const truncRaw = rawText.length > 200 ? rawText.slice(0, 200) + '...' : rawText;
+
+  let html = '<div style="padding:12px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;margin-bottom:10px;">';
+  // Header: title + badges
+  html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">';
+  html += '<div style="font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.3;flex:1;">' + ccEscapeHtml(i.title) + '</div>';
+  html += '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + ccIdeaStatusBadge(i.status, i.decision) + '</div>';
+  html += '</div>';
+  // Score pills + tags
+  html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">';
+  html += ccIdeaScorePill('Impact', i.impact_score) + ccIdeaScorePill('Effort', i.effort_score);
+  tags.forEach(t => { html += '<span style="font-size:10px;color:var(--text-muted);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:8px;">#' + ccEscapeHtml(t) + '</span>'; });
+  html += '</div>';
+  // Raw text
+  if (rawText) {
+    html += '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.45;word-break:break-word;">' + truncRaw + '</div>';
+  }
+  // AI Expansion (Stage 2+)
+  if (i.developed_md && i.stage >= 2) {
+    html += '<details style="margin-top:8px;"><summary style="font-size:11px;color:var(--ws-accent);cursor:pointer;font-weight:600;">AI Expansion</summary>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;white-space:pre-wrap;line-height:1.5;">' + ccEscapeHtml(i.developed_md) + '</div></details>';
+  }
+  // Development Plan (Stage 3+)
+  if (i.development_md && i.stage >= 3) {
+    html += '<details style="margin-top:6px;"><summary style="font-size:11px;color:#8b5cf6;cursor:pointer;font-weight:600;">Development Plan</summary>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;white-space:pre-wrap;line-height:1.5;">' + ccEscapeHtml(i.development_md) + '</div></details>';
+  }
+  // Decision (Stage 4+)
+  if (i.decision) {
+    const dColor = i.decision === 'pursue' ? '#10b981' : i.decision === 'park' ? '#f59e0b' : '#ef4444';
+    html += '<div style="margin-top:6px;font-size:11px;"><span style="color:' + dColor + ';font-weight:600;text-transform:uppercase;">' + i.decision + '</span>';
+    if (i.decision_notes) html += '<span style="color:var(--text-muted);margin-left:6px;">' + ccEscapeHtml(i.decision_notes) + '</span>';
+    html += '</div>';
+  }
+  // Implementation tasks (Stage 5)
+  if (i.stage >= 5 && i.implementation_tasks) {
+    const taskIds = (() => { try { return JSON.parse(i.implementation_tasks || '[]'); } catch { return []; } })();
+    if (taskIds.length > 0) {
+      html += '<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Mission tasks: ' + taskIds.map(tid => '<a href="#" onclick="event.preventDefault();showPage(\\'mission\\');return false;" style="color:var(--ws-accent);">' + tid + '</a>').join(', ') + '</div>';
+    }
+  }
+  // Footer: date + action buttons
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);">';
+  html += '<span style="font-size:10px;color:var(--text-muted);font-family:\\'JetBrains Mono\\',monospace;">' + dt + '</span>';
+  html += '<div style="display:flex;gap:4px;">';
+  // Stage-dependent action buttons
+  const btnStyle = 'font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid var(--border-subtle);cursor:pointer;font-weight:600;';
+  if (i.status === 'raw') {
+    html += '<button onclick="ccEditIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:var(--text-secondary);">Edit</button>';
+    html += '<button onclick="ccDeleteIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:#ef4444;border-color:#ef4444;">Delete</button>';
+    html += '<button onclick="ccExpandIdea(' + i.id + ')" style="' + btnStyle + 'background:var(--ws-accent);color:#000;border-color:var(--ws-accent);">Expand</button>';
+  } else if (i.status === 'expanded') {
+    html += '<button onclick="ccEditIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:var(--text-secondary);">Edit</button>';
+    html += '<button onclick="ccDeleteIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:#ef4444;border-color:#ef4444;">Delete</button>';
+    html += '<button onclick="ccDevelopIdea(' + i.id + ')" style="' + btnStyle + 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;">Develop</button>';
+  } else if (i.status === 'developed') {
+    html += '<button onclick="ccEditIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:var(--text-secondary);">Edit</button>';
+    html += '<button onclick="ccDeleteIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:#ef4444;border-color:#ef4444;">Delete</button>';
+    html += '<button onclick="ccDecideIdea(' + i.id + ',\\'kill\\')" style="' + btnStyle + 'background:transparent;color:#ef4444;border-color:#ef4444;">Kill</button>';
+    html += '<button onclick="ccDecideIdea(' + i.id + ',\\'park\\')" style="' + btnStyle + 'background:transparent;color:#f59e0b;border-color:#f59e0b;">Park</button>';
+    html += '<button onclick="ccDecideIdea(' + i.id + ',\\'pursue\\')" style="' + btnStyle + 'background:#10b981;color:#fff;border-color:#10b981;">Pursue</button>';
+  } else if (i.status === 'archived') {
+    html += '<button onclick="ccReopenIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:var(--ws-accent);border-color:var(--ws-accent);">Reopen</button>';
+    html += '<button onclick="ccDeleteIdea(' + i.id + ')" style="' + btnStyle + 'background:transparent;color:#ef4444;border-color:#ef4444;">Delete</button>';
+  } else if (i.status === 'implementing') {
+    html += '<button onclick="showPage(\\'mission\\')" style="' + btnStyle + 'background:var(--ws-accent);color:#000;border-color:var(--ws-accent);">View Tasks</button>';
+  }
+  // expanding/developing: no action buttons (spinner is shown in badge)
+  html += '</div></div>';
+  html += '</div>';
+  return html;
+}
+
 async function ccLoadIdeas() {
   const list = document.getElementById('ideas-list');
   if (!list) return;
+  // Clear any running auto-refresh
+  if (window._ccIdeaAutoRefresh) { clearTimeout(window._ccIdeaAutoRefresh); window._ccIdeaAutoRefresh = null; }
   try {
-    const r = await fetch('/api/ideas');
+    const filter = document.getElementById('ideas-filter');
+    const status = filter ? filter.value : '';
+    const url = status ? '/api/ideas?status=' + encodeURIComponent(status) : '/api/ideas';
+    const r = await fetch(url);
     const data = await r.json();
     const ideas = (data.ideas || []);
+    window.CC_IDEAS_COUNT = ideas.length;
     if (ideas.length === 0) {
-      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No ideas yet. Click + Add.</div>';
+      list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px 0;">No ideas yet. Click + New Idea to start.</div>';
       return;
     }
-    list.innerHTML = ideas.map(i => {
-      const dt = new Date(i.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      return '<div style="padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:8px;margin-bottom:8px;">' +
-        '<div style="font-weight:600;font-size:13px;color:var(--text-primary);line-height:1.3;">' + ccEscapeHtml(i.title) + '</div>' +
-        (i.raw_text ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.45;word-break:break-word;">' + ccEscapeHtml(i.raw_text).slice(0, 400) + '</div>' : '') +
-        '<div style="font-size:10px;color:var(--text-muted);font-family:\\'JetBrains Mono\\',monospace;margin-top:6px;">' + dt + '</div>' +
-      '</div>';
-    }).join('');
+    list.innerHTML = ideas.map(ccRenderIdeaCard).join('');
+    // Auto-refresh if any ideas are processing
+    const hasProcessing = ideas.some(i => i.status === 'expanding' || i.status === 'developing');
+    if (hasProcessing) {
+      window._ccIdeaAutoRefresh = setTimeout(() => ccLoadIdeas(), 3000);
+    }
   } catch (err) { console.warn('ccLoadIdeas failed', err); }
 }
 
-function ccShowIdeaForm() {
+function ccShowIdeaForm(editIdea) {
   const form = document.getElementById('ideas-form');
   if (!form) return;
-  if (form.dataset.open === '1') { form.style.display = 'none'; form.dataset.open = '0'; return; }
+  if (form.dataset.open === '1' && !editIdea) { form.style.display = 'none'; form.dataset.open = '0'; window._ccIdeaEditId = null; return; }
+  window._ccIdeaEditId = editIdea ? editIdea.id : null;
   form.dataset.open = '1';
   form.style.display = 'block';
+  const isEdit = !!editIdea;
   form.innerHTML =
     '<div style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:8px;">' +
-    '<input type="text" id="idea-title" placeholder="Short title" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;">' +
-    '<textarea id="idea-body" placeholder="Raw thought" rows="3" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>' +
-    '<div style="display:flex;gap:6px;justify-content:flex-end;"><button onclick="ccShowIdeaForm()" style="background:transparent;color:var(--text-secondary);border:none;padding:4px 10px;font-size:11px;cursor:pointer;">Cancel</button><button onclick="ccSubmitIdea()" style="background:var(--ws-accent);color:#000;border:none;padding:4px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;">Add</button></div>' +
-    '</div>';
+    '<input type="text" id="idea-title" placeholder="Short title" value="' + (isEdit ? ccEscapeHtml(editIdea.title) : '') + '" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;">' +
+    '<textarea id="idea-body" placeholder="Raw thought, link, observation..." rows="3" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;">' + (isEdit ? ccEscapeHtml(editIdea.raw_text) : '') + '</textarea>' +
+    '<input type="text" id="idea-source" placeholder="Source URL (optional)" value="' + (isEdit ? ccEscapeHtml(editIdea.source_url || '') : '') + '" style="background:var(--bg-void);border:1px solid var(--border-subtle);color:var(--text-primary);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;">' +
+    '<div style="display:flex;gap:6px;justify-content:flex-end;">' +
+    '<button onclick="ccShowIdeaForm()" style="background:transparent;color:var(--text-secondary);border:none;padding:4px 10px;font-size:11px;cursor:pointer;">Cancel</button>' +
+    '<button onclick="ccSubmitIdea()" style="background:var(--ws-accent);color:#000;border:none;padding:4px 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;">' + (isEdit ? 'Save' : 'Add') + '</button>' +
+    '</div></div>';
   document.getElementById('idea-title').focus();
 }
 
 async function ccSubmitIdea() {
   const title = document.getElementById('idea-title').value.trim();
   const body = document.getElementById('idea-body').value.trim();
+  const source = document.getElementById('idea-source') ? document.getElementById('idea-source').value.trim() : '';
   if (!title) return;
-  await fetch('/api/ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, raw_text: body }) });
+  if (window._ccIdeaEditId) {
+    await fetch('/api/ideas/' + window._ccIdeaEditId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, raw_text: body, source_url: source }) });
+  } else {
+    await fetch('/api/ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, raw_text: body, source_url: source }) });
+  }
+  window._ccIdeaEditId = null;
   ccShowIdeaForm();
+  await ccLoadIdeas();
+}
+
+async function ccEditIdea(id) {
+  try {
+    const r = await fetch('/api/ideas/' + id);
+    const data = await r.json();
+    if (data.idea) ccShowIdeaForm(data.idea);
+  } catch (err) { console.warn('ccEditIdea failed', err); }
+}
+
+async function ccDeleteIdea(id) {
+  if (!confirm('Delete this idea permanently?')) return;
+  await fetch('/api/ideas/' + id, { method: 'DELETE' });
+  await ccLoadIdeas();
+}
+
+async function ccExpandIdea(id) {
+  await fetch('/api/ideas/' + id + '/expand', { method: 'POST' });
+  await ccLoadIdeas();
+}
+
+async function ccDevelopIdea(id) {
+  // Development takes time -- start it and let auto-refresh handle the UI
+  fetch('/api/ideas/' + id + '/develop', { method: 'POST' });
+  // Immediately reload to show the "developing" spinner
+  setTimeout(() => ccLoadIdeas(), 500);
+}
+
+async function ccDecideIdea(id, decision) {
+  let notes = '';
+  if (decision === 'park' || decision === 'kill') {
+    notes = prompt('Why ' + decision + ' this idea? (optional)') || '';
+  }
+  await fetch('/api/ideas/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, notes }) });
+  await ccLoadIdeas();
+}
+
+async function ccReopenIdea(id) {
+  await fetch('/api/ideas/' + id + '/reopen', { method: 'POST' });
   await ccLoadIdeas();
 }
 

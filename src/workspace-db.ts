@@ -55,7 +55,33 @@ export interface IdeaRow {
   raw_text: string;
   developed_md: string;
   source_url: string;
+  status: string;
+  stage: number;
+  development_md: string;
+  decision: string | null;
+  decision_notes: string;
+  implementation_tasks: string;
+  tags_json: string;
+  impact_score: number | null;
+  effort_score: number | null;
   created_at: number;
+  updated_at: number;
+}
+
+export interface IdeaUpdateInput {
+  title?: string;
+  raw_text?: string;
+  source_url?: string;
+  developed_md?: string;
+  status?: string;
+  stage?: number;
+  development_md?: string;
+  decision?: string | null;
+  decision_notes?: string;
+  implementation_tasks?: string[];
+  tags_json?: string[];
+  impact_score?: number | null;
+  effort_score?: number | null;
 }
 
 export interface DecisionRow {
@@ -347,11 +373,23 @@ export function deleteQuickLink(id: number, db?: Database.Database): void {
 
 // ── Ideas ────────────────────────────────────────────────────────────
 
-export function listIdeas(businessId: string | null, db?: Database.Database): IdeaRow[] {
+export function listIdeas(
+  businessId: string | null,
+  opts: { status?: string } = {},
+  db?: Database.Database,
+): IdeaRow[] {
   const d = resolveDb(db);
+  const where: string[] = ['business_id IS ?'];
+  const params: unknown[] = [businessId];
+  if (opts.status) { where.push('status = ?'); params.push(opts.status); }
   return d.prepare(
-    'SELECT * FROM ideas WHERE business_id IS ? ORDER BY created_at DESC',
-  ).all(businessId) as IdeaRow[];
+    `SELECT * FROM ideas WHERE ${where.join(' AND ')} ORDER BY updated_at DESC`,
+  ).all(...params) as IdeaRow[];
+}
+
+export function getIdea(id: number, db?: Database.Database): IdeaRow | null {
+  const d = resolveDb(db);
+  return (d.prepare('SELECT * FROM ideas WHERE id = ?').get(id) as IdeaRow | undefined) ?? null;
 }
 
 export function createIdea(
@@ -360,10 +398,47 @@ export function createIdea(
   db?: Database.Database,
 ): IdeaRow {
   const d = resolveDb(db);
+  const now = Math.floor(Date.now() / 1000);
   const res = d.prepare(
-    'INSERT INTO ideas (business_id, title, raw_text, source_url) VALUES (?, ?, ?, ?)',
-  ).run(businessId, input.title, input.raw_text, input.source_url ?? '');
+    'INSERT INTO ideas (business_id, title, raw_text, source_url, status, stage, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(businessId, input.title, input.raw_text, input.source_url ?? '', 'raw', 1, now);
   return d.prepare('SELECT * FROM ideas WHERE id = ?').get(res.lastInsertRowid) as IdeaRow;
+}
+
+export function updateIdea(id: number, patch: IdeaUpdateInput, db?: Database.Database): IdeaRow | null {
+  const d = resolveDb(db);
+  const existing = getIdea(id, d);
+  if (!existing) return null;
+  const cols: string[] = [];
+  const values: unknown[] = [];
+  const map: Array<[keyof IdeaUpdateInput, string, (v: unknown) => unknown]> = [
+    ['title',                'title',                (v) => v],
+    ['raw_text',             'raw_text',             (v) => v],
+    ['source_url',           'source_url',           (v) => v],
+    ['developed_md',         'developed_md',         (v) => v],
+    ['status',               'status',               (v) => v],
+    ['stage',                'stage',                (v) => v],
+    ['development_md',       'development_md',       (v) => v],
+    ['decision',             'decision',             (v) => v],
+    ['decision_notes',       'decision_notes',       (v) => v],
+    ['implementation_tasks', 'implementation_tasks',  (v) => JSON.stringify(v ?? [])],
+    ['tags_json',            'tags_json',             (v) => JSON.stringify(v ?? [])],
+    ['impact_score',         'impact_score',          (v) => v],
+    ['effort_score',         'effort_score',          (v) => v],
+  ];
+  for (const [key, col, xform] of map) {
+    if (patch[key] !== undefined) { cols.push(`${col} = ?`); values.push(xform(patch[key])); }
+  }
+  if (cols.length === 0) return existing;
+  const now = Math.floor(Date.now() / 1000);
+  cols.push('updated_at = ?');
+  values.push(now);
+  d.prepare(`UPDATE ideas SET ${cols.join(', ')} WHERE id = ?`).run(...values, id);
+  return getIdea(id, d);
+}
+
+export function deleteIdea(id: number, db?: Database.Database): void {
+  resolveDb(db).prepare('DELETE FROM ideas WHERE id = ?').run(id);
 }
 
 // ── Decisions ────────────────────────────────────────────────────────

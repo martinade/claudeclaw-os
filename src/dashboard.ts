@@ -96,6 +96,9 @@ import {
   deleteCoreMemory,
   listIdeas,
   createIdea,
+  getIdea,
+  updateIdea,
+  deleteIdea,
   listDecisions,
   createDecision,
   listInboxItems,
@@ -1714,13 +1717,130 @@ export function startDashboard(botApi?: Api<RawApi>): void {
   // Ideas
   app.get('/api/ideas', (c) => {
     const bizId = businessIdForSlug(getBizSlug(c));
-    return c.json({ ideas: listIdeas(bizId) });
+    const status = c.req.query('status') || undefined;
+    return c.json({ ideas: listIdeas(bizId, { status }) });
+  });
+  app.get('/api/ideas/:id', (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const idea = getIdea(id);
+    if (!idea) return c.json({ error: 'not found' }, 404);
+    return c.json({ idea });
   });
   app.post('/api/ideas', async (c) => {
     const body = await c.req.json<{ title: string; raw_text: string; source_url?: string }>();
     if (!body?.title || !body?.raw_text) return c.json({ error: 'title and raw_text required' }, 400);
     const bizId = businessIdForSlug(getBizSlug(c));
-    return c.json({ idea: createIdea(bizId, body) });
+    const idea = createIdea(bizId, body);
+    // Auto-expand after 200s delay (Stage 2)
+    setTimeout(async () => {
+      try {
+        const { expandIdea } = await import('./jobs/idea-develop.js');
+        await expandIdea(idea.id);
+      } catch (err) {
+        logger.warn({ err: (err as Error).message, ideaId: idea.id }, 'Auto-expand failed');
+      }
+    }, 200_000);
+    return c.json({ idea });
+  });
+  app.patch('/api/ideas/:id', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const body = await c.req.json<Record<string, unknown>>();
+    const existing = getIdea(id);
+    if (!existing) return c.json({ error: 'not found' }, 404);
+    const updated = updateIdea(id, body as Parameters<typeof updateIdea>[1]);
+    // If title or raw_text changed on a stage 2+ idea, trigger re-expansion
+    if (existing.stage >= 2 && (body.title || body.raw_text)) {
+      setTimeout(async () => {
+        try {
+          const { expandIdea } = await import('./jobs/idea-develop.js');
+          await expandIdea(id);
+        } catch (err) {
+          logger.warn({ err: (err as Error).message, ideaId: id }, 'Re-expand after edit failed');
+        }
+      }, 2_000);
+    }
+    return c.json({ idea: updated });
+  });
+  app.delete('/api/ideas/:id', (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    deleteIdea(id);
+    return c.json({ deleted: true });
+  });
+  app.post('/api/ideas/:id/expand', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const idea = getIdea(id);
+    if (!idea) return c.json({ error: 'not found' }, 404);
+    const { expandIdea } = await import('./jobs/idea-develop.js');
+    const ok = await expandIdea(id);
+    return c.json({ ok, idea: getIdea(id) });
+  });
+  app.post('/api/ideas/:id/develop', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const idea = getIdea(id);
+    if (!idea) return c.json({ error: 'not found' }, 404);
+    const { developIdea } = await import('./jobs/idea-develop.js');
+    const ok = await developIdea(id);
+    return c.json({ ok, idea: getIdea(id) });
+  });
+  app.post('/api/ideas/:id/decide', async (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const body = await c.req.json<{ decision: string; notes?: string }>();
+    if (!body?.decision || !['pursue', 'park', 'kill'].includes(body.decision)) {
+      return c.json({ error: 'decision must be pursue, park, or kill' }, 400);
+    }
+    const idea = getIdea(id);
+    if (!idea) return c.json({ error: 'not found' }, 404);
+    if (body.decision === 'pursue') {
+      // Stage 5: generate implementation tasks and create mission tasks
+      const { generateImplementationTasks } = await import('./jobs/idea-develop.js');
+      const tasks = await generateImplementationTasks(id);
+      const taskIds: string[] = [];
+      for (const t of tasks) {
+        const taskId = crypto.randomUUID().slice(0, 8);
+        createMissionTask(taskId, t.title, t.prompt, null, 'ideas-pipeline', 5);
+        taskIds.push(taskId);
+      }
+      updateIdea(id, {
+        decision: 'pursue',
+        decision_notes: body.notes || '',
+        status: 'implementing',
+        stage: 5,
+        implementation_tasks: taskIds,
+      });
+    } else {
+      updateIdea(id, {
+        decision: body.decision,
+        decision_notes: body.notes || '',
+        status: 'archived',
+        stage: 4,
+      });
+    }
+    return c.json({ idea: getIdea(id) });
+  });
+  app.post('/api/ideas/:id/reopen', (c) => {
+    const id = parseInt(c.req.param('id'), 10);
+    if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+    const idea = getIdea(id);
+    if (!idea) return c.json({ error: 'not found' }, 404);
+    // Revert to highest stage with content
+    let revertStage = 1;
+    let revertStatus = 'raw';
+    if (idea.development_md) { revertStage = 3; revertStatus = 'developed'; }
+    else if (idea.developed_md) { revertStage = 2; revertStatus = 'expanded'; }
+    updateIdea(id, {
+      decision: null,
+      decision_notes: '',
+      status: revertStatus,
+      stage: revertStage,
+      implementation_tasks: [],
+    });
+    return c.json({ idea: getIdea(id) });
   });
 
   // Decisions

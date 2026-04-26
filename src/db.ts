@@ -938,6 +938,45 @@ function runMigrations(database: Database.Database): void {
       updated_at      INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  // Ideas Pipeline: add stage, status, development, decision, scoring columns
+  const ideaCols = database.prepare('PRAGMA table_info(ideas)').all() as Array<{ name: string }>;
+  if (ideaCols.length > 0) {
+    if (!ideaCols.some((c) => c.name === 'status')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN status TEXT NOT NULL DEFAULT 'raw'`);
+    }
+    if (!ideaCols.some((c) => c.name === 'stage')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN stage INTEGER NOT NULL DEFAULT 1`);
+    }
+    if (!ideaCols.some((c) => c.name === 'development_md')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN development_md TEXT NOT NULL DEFAULT ''`);
+    }
+    if (!ideaCols.some((c) => c.name === 'decision')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN decision TEXT`);
+    }
+    if (!ideaCols.some((c) => c.name === 'decision_notes')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN decision_notes TEXT NOT NULL DEFAULT ''`);
+    }
+    if (!ideaCols.some((c) => c.name === 'implementation_tasks')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN implementation_tasks TEXT NOT NULL DEFAULT '[]'`);
+    }
+    if (!ideaCols.some((c) => c.name === 'tags_json')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'`);
+    }
+    if (!ideaCols.some((c) => c.name === 'impact_score')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN impact_score REAL`);
+    }
+    if (!ideaCols.some((c) => c.name === 'effort_score')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN effort_score REAL`);
+    }
+    if (!ideaCols.some((c) => c.name === 'updated_at')) {
+      database.exec(`ALTER TABLE ideas ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`);
+      // Backfill updated_at from created_at for existing rows
+      database.exec(`UPDATE ideas SET updated_at = created_at WHERE updated_at = 0`);
+    }
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_ideas_biz_status ON ideas(business_id, status)`);
+    logger.info('Migration: ideas pipeline columns ready');
+  }
 }
 
 /** @internal - for tests only. Creates a fresh in-memory database. */

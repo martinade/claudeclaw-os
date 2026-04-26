@@ -19,6 +19,7 @@ import {
   agentSystemPrompt,
   TYPING_REFRESH_MS,
   AGENT_TIMEOUT_MS,
+  AGENT_MAX_TURNS,
   STREAM_STRATEGY,
   MODEL_FALLBACK_CHAIN,
   SHOW_COST_FOOTER,
@@ -137,6 +138,22 @@ interface PendingTask {
   text?: string;              // captured task content once we have it
 }
 const ccPendingTask = new Map<string, PendingTask>();
+
+/**
+ * Map a non-success SDK result subtype to a clear user-facing notice.
+ * Used to proactively alert when an agent run hit a limit or errored, so
+ * partial responses don't get mistaken for clean finishes.
+ */
+function formatSubtypeNotice(subtype: string): string {
+  switch (subtype) {
+    case 'error_max_turns':
+      return `Hit the tool-use cap (${AGENT_MAX_TURNS} turns) mid-task. The work above may be partial. Reply 'continue' to resume from where I stopped, or raise AGENT_MAX_TURNS in .env if this keeps happening.`;
+    case 'error_during_execution':
+      return 'Something errored during execution. Check the logs (/tmp/claudeclaw.log) for details. The response above may be incomplete.';
+    default:
+      return `Run ended with subtype "${subtype}" instead of "success". Response above may be partial — verify before relying on it.`;
+  }
+}
 
 function ccPendingTaskCapture(chatIdStr: string, text: string): void {
   const id = Math.random().toString(36).slice(2, 10);
@@ -705,6 +722,14 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'telegram' });
       await ctx.reply(msg);
       return;
+    }
+
+    // Proactive notification: SDK ended in a non-success subtype (e.g. error_max_turns).
+    // Surface this clearly instead of letting the partial response look like a clean finish.
+    if (result.subtype && result.subtype !== 'success') {
+      const notice = formatSubtypeNotice(result.subtype);
+      logger.warn({ chatId: chatIdStr, subtype: result.subtype }, 'Agent run ended with non-success subtype');
+      try { await ctx.reply(`⚠️ ${notice}`); } catch { /* best-effort */ }
     }
 
     if (result.newSessionId) {
@@ -2000,6 +2025,16 @@ async function processDashboardMessage(
         : 'Stopped.';
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'dashboard' });
       return;
+    }
+
+    // Proactive notification on non-success subtype. The dashboard caller is on the
+    // dashboard, but ALSO push a Telegram alert so the user gets it on their phone
+    // immediately even if they've moved away from the dashboard.
+    if (result.subtype && result.subtype !== 'success') {
+      const notice = formatSubtypeNotice(result.subtype);
+      logger.warn({ chatId: chatIdStr, subtype: result.subtype }, 'Dashboard agent run ended with non-success subtype');
+      emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: `⚠️ ${notice}`, source: 'dashboard' });
+      try { await botApi.sendMessage(parseInt(chatIdStr), `⚠️ ${notice}`); } catch { /* best-effort */ }
     }
 
     if (result.newSessionId) {

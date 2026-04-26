@@ -132,6 +132,9 @@ export interface AgentResult {
   newSessionId: string | undefined;
   usage: UsageInfo | null;
   aborted?: boolean;
+  /** SDK result subtype: 'success' | 'error_max_turns' | 'error_during_execution' | etc.
+   *  Surfaced so callers can react (e.g. notify the user when a max-turns cap fired). */
+  subtype?: string;
 }
 
 /**
@@ -204,6 +207,7 @@ export async function runAgent(
   let lastCallCacheRead = 0;
   let lastCallInputTokens = 0;
   let streamedText = '';
+  let resultSubtype: string | undefined;
 
   // Refresh typing indicator on an interval while Claude works.
   // Telegram's "typing..." action expires after ~5s.
@@ -337,6 +341,7 @@ export async function runAgent(
 
       if (ev['type'] === 'result') {
         resultText = (ev['result'] as string | null | undefined) ?? null;
+        resultSubtype = ev['subtype'] as string | undefined;
 
         // Extract usage info from result event
         const evUsage = ev['usage'] as Record<string, number> | undefined;
@@ -373,7 +378,7 @@ export async function runAgent(
   } catch (err) {
     if (abortController?.signal.aborted) {
       logger.info('Agent query aborted by user');
-      return { text: null, newSessionId, usage, aborted: true };
+      return { text: null, newSessionId, usage, aborted: true, subtype: resultSubtype };
     }
 
     // Classify the error and attach context-aware metadata
@@ -388,7 +393,7 @@ export async function runAgent(
     clearInterval(typingInterval);
   }
 
-  return { text: resultText, newSessionId, usage };
+  return { text: resultText, newSessionId, usage, subtype: resultSubtype };
 }
 
 // ── Retry wrapper ─────────────────────────────────────────────────
